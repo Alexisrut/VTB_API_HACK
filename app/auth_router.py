@@ -20,7 +20,6 @@ settings = get_settings()
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     """Регистрация пользователя"""
-    
     # Проверка существования пользователя
     result = await db.execute(
         select(User).where((User.email == user_data.email) | (User.phone_number == user_data.phone_number))

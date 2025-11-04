@@ -5,6 +5,9 @@ from app.auth_router import router as auth_router
 from app.users_router import router as users_router
 from app.database import engine
 from app.models import Base
+import uvicorn
+
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,7 +28,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:5000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

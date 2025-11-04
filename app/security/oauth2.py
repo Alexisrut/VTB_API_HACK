@@ -1,10 +1,10 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthCredentials
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.security.jwt_handler import decode_token
 
 security = HTTPBearer()
 
-async def get_current_user(credentials: HTTPAuthCredentials = Depends(security)) -> int:
+async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> int:
     token = credentials.credentials
     user_id = decode_token(token)
     
