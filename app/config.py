@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     
     # OAuth2
     BANK_API_URL: str = "https://vbank.open.bankingapi.ru"
-    BANK_CLIENT_ID: str = "team261"
+    BANK_CLIENT_ID: str = "team261-1"
     BANK_CLIENT_SECRET: str = "gBRvg9R6lYhvWHAOQFOH1HGarl1q80Rt"
-   # BANK_REDIRECT_URI: str
+    BANK_REDIRECT_URI: str = "https://vbank.open.bankingapi.ru/client"
     '''
     # Frontend
     FRONTEND_URL: str
