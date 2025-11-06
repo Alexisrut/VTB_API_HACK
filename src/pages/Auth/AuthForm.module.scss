@@ -11,7 +11,7 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
-  
+
   h2 {
     font-size: 1.75rem;
     font-weight: 700;
@@ -42,6 +42,7 @@
 
   input,
   select {
+    width: 100%;
     background-color: $input;
     border: 1px solid $border;
     color: $foreground;
@@ -55,12 +56,27 @@
       border-color: $primary;
       box-shadow: 0 0 0 2px rgba($primary, 0.3);
     }
+
+    &:-webkit-autofill,
+    &:-webkit-autofill:hover,
+    &:-webkit-autofill:focus,
+    &:-webkit-autofill:active {
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: $foreground;
+      -webkit-box-shadow: 0 0 0px 1000px $input inset;
+      box-shadow: 0 0 0px 1000px $input inset;
+      transition: background-color 5000s ease-in-out 0s;
+      border-color: $border;
+    }
   }
 }
+
+
 
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  width: 100%;
   gap: 1rem;
 }
 
@@ -74,6 +90,7 @@
 .switchMode {
   color: $primary-light;
   text-decoration: none;
+
   &:hover {
     color: $foreground;
     text-decoration: none;
@@ -88,12 +105,13 @@
   font-size: 0.75rem;
   font-weight: 600;
 
-  &::before, &::after {
+  &::before,
+  &::after {
     content: '';
     flex: 1;
     border-bottom: 1px solid $border;
   }
-  
+
   span {
     padding: 0 1rem;
   }
