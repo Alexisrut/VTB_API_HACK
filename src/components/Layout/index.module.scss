@@ -1,0 +1,259 @@
+/* Файл: src/styles/sidebar.module.scss */
+@use "../../styles/vars" as *;
+@use "../../styles/mixins" as *;
+
+.root {
+  min-height: 100vh;
+  background-color: $background;
+  display: block;
+}
+
+/* Desktop floating sidebar */
+.sidebar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .sidebar {
+    display: block;
+    position: fixed;
+    left: 1.5rem; 
+    top: 1.5rem; 
+    bottom: 1.5rem; 
+    width: 5rem; 
+    z-index: 50;
+    pointer-events: auto;
+  }
+
+  .sidebarInner {
+    @include glass-card();
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2rem;
+    padding: 2rem 0;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    border-radius: $radius;
+  }
+
+  .brandLink {
+    height: 3rem;
+    width: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: $radius-md;
+    background: $gradient-primary;
+  }
+
+  .nav {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1 1 auto;
+    gap: 0.75rem;
+    width: 100%;
+  }
+
+  .navItem {
+    position: relative;
+    height: 3rem;
+    width: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: $radius-md;
+    transition: $transition-smooth;
+    color: $muted-foreground;
+  }
+
+  .navItemActive {
+    background: $primary;
+    color: $primary-foreground;
+    box-shadow: $shadow-glow;
+  }
+
+  .tooltip {
+    position: absolute;
+    left: 100%;
+    margin-left: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: $popover;
+    color: $popover-foreground;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: $radius-md;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 160ms ease;
+    white-space: nowrap;
+    box-shadow: $shadow-medium;
+  }
+
+  .navItem:hover .tooltip {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Mobile header */
+.mobileHeader {
+  display: block;
+}
+
+@media (min-width: 1024px) {
+  .mobileHeader {
+    display: none;
+  }
+}
+
+.mobileBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 1rem;
+  z-index: 40;
+  padding: 0 1rem;
+  pointer-events: none; /* Позволяем кликам проходить через пустые области */
+}
+
+.mobileInner {
+  @include glass-card();
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4rem;
+  padding: 0 1rem;
+  border-radius: $radius;
+  margin: 0 auto;
+  max-width: calc(100% - 2rem); 
+  pointer-events: auto;
+}
+
+.brandRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.brandSmall {
+  height: 2rem;
+  width: 2rem;
+  border-radius: $radius-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: $gradient-primary;
+}
+
+.mobilePanelOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba($background, 0.6);
+  backdrop-filter: blur(6px);
+  z-index: 50;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.mobilePanel {
+  @include glass-card();
+  position: fixed;
+  top: 1rem;
+  bottom: 1rem;
+  left: 1rem;
+  right: 1rem;
+  max-width: calc(100% - 2rem);
+  max-height: calc(100% - 2rem);
+  z-index: 60;
+  border-radius: $radius;
+  padding: 2rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0);
+  }
+}
+
+
+.menuCloseRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+
+.navList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.navListItem a {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: $radius-md;
+  font-weight: 700;
+  text-decoration: none;
+  color: $foreground;
+}
+
+.navListItem a:hover {
+  background: rgba($foreground, 0.02);
+}
+
+.main {
+  padding-left: 0;
+}
+
+@media (min-width: 1024px) {
+  .main {
+    padding-left: 8rem;
+    padding-top: 0;
+  }
+}
+
+.contentWrap {
+  padding: 1.5rem 1.25rem;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: $radius-md;
+  background: transparent;
+  border: none;
+  color: $foreground;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  
+  &:hover {
+    background: rgba($foreground, 0.1);
+  }
+}

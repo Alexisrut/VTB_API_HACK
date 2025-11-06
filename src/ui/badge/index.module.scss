@@ -1,0 +1,52 @@
+@use "../../styles/vars" as *;
+
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem; 
+  font-weight: 600; 
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s;
+
+  &:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px $background, 0 0 0 4px $ring;
+  }
+}
+
+
+.default {
+  border-color: transparent;
+  background-color: $primary;
+  color: $primary-foreground;
+  &:hover {
+    background-color: rgba($primary, 0.8);
+  }
+}
+
+.secondary {
+  border-color: transparent;
+  background-color: $secondary;
+  color: $secondary-foreground;
+  &:hover {
+    background-color: rgba($secondary, 0.8);
+  }
+}
+
+.destructive {
+  border-color: transparent;
+  background-color: $danger;
+  color: $destructive-foreground;
+  &:hover {
+    background-color: rgba($danger, 0.8);
+  }
+}
+
+
+.outline {
+  color: $foreground;
+  border-color: $border; 
+}

@@ -1,0 +1,122 @@
+/* Файл: src/components/StatCard.module.scss */
+@use "../../styles/vars" as *;
+@use "../../styles/mixins" as *;
+@use "sass:color";
+
+@mixin variant-styles($color, $color-foreground) {
+  border: 2px solid rgba($color, 0.2);
+  transition: all 0.3s ease;
+  box-shadow: $shadow-soft;
+
+  &:hover {
+    border-color: rgba($color, 0.4);
+    box-shadow: $shadow-medium, 0 0 40px rgba($color, 0.2);
+    transform: translateY(-2px);
+  }
+
+  .iconBg {
+    background-color: $color;
+    color: $color-foreground;
+    box-shadow: 0 4px 12px rgba(color.adjust($color, $lightness: -20%), 0.4);
+  }
+
+  .trendPositive {
+    background-color: rgba($success, 0.2);
+    color: $success;
+  }
+  
+  .trendNegative {
+    background-color: rgba($danger, 0.2);
+    color: $danger;
+  }
+}
+
+
+.statCard {
+  @include glass-card(false);
+  
+  &.default {
+    @include variant-styles($primary, $primary-foreground);
+  }
+  &.success {
+    @include variant-styles($success, $success-foreground);
+  }
+  &.warning {
+    @include variant-styles($warning, $warning-foreground);
+  }
+  &.danger {
+    @include variant-styles($danger, $danger-foreground);
+  }
+}
+
+
+.cardContent {
+  padding: 1.5rem;
+}
+
+.contentWrapper {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.textSection {
+  flex: 1 1 0%;
+  
+  > *:not([hidden]) ~ *:not([hidden]) {
+    margin-top: 0.75rem;
+  }
+}
+
+.title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: $muted-foreground;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+
+.value {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: $foreground;
+  text-shadow: 0 0 20px rgba($primary, 0.3);
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: $muted-foreground;
+}
+
+
+.trendContainer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+
+.trendBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: $radius-md;
+}
+
+
+.iconBg {
+  border-radius: $radius * 1.25;
+  padding: 1rem;
+  flex-shrink: 0;
+}
+
+.icon {
+  height: 1.75rem;
+  width: 1.75rem;
+}

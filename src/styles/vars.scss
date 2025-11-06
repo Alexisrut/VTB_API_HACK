@@ -1,0 +1,66 @@
+// Основные цвета
+$background: #0f101a;
+$foreground: #edf2f9;
+$card: #12131a;
+$popover: #171820;
+$primary: #c67dff;
+$primary-light: #d4a1ff;
+$primary-glow: #e9d2ff;
+$secondary: #1a1b22;
+$accent: #00f5cc;
+$accent-light: #33ffd5;
+$accent-glow: #a8fff8;
+$success: #00d6a3;
+$success-light: #33e8b8;
+$success-glow: #a3ffe9;
+$warning: #ff9933;
+$warning-light: #ffaf66;
+$danger: #ff505f;
+$danger-light: #ff7f8c;
+$muted: #1a1b22;
+$border: #282a33;
+$input: #282a33;
+$ring: #c67dff;
+
+// Специальные цвета
+$chart-1: $primary;
+$chart-2: $accent;
+$chart-3: $success;
+$chart-4: #cf77ff;
+$chart-5: $warning;
+
+// Цвета для текста
+$primary-foreground: $foreground;
+$secondary-foreground: $foreground;
+$accent-foreground: $background;
+$success-foreground: $background;
+$warning-foreground: $background;
+$danger-foreground: $foreground;
+$muted-foreground: #a0a7b6;
+$destructive: $danger;
+$destructive-foreground: $foreground;
+$card-foreground: $foreground;
+$popover-foreground: $foreground;
+
+// Градиенты
+$gradient-primary: linear-gradient(135deg, $primary 0%, #cf77ff 100%);
+$gradient-accent: linear-gradient(135deg, $accent 0%, $success 100%);
+$gradient-card: linear-gradient(135deg, $card 0%, #1d1e26 100%);
+$gradient-glow: radial-gradient(circle at 50% 0%, rgba($primary, 0.15) 0%, transparent 60%);
+
+// Тени
+$shadow-soft: 0 2px 16px -4px rgba($primary, 0.15);
+$shadow-medium: 0 8px 32px -8px rgba($primary, 0.25);
+$shadow-strong: 0 16px 48px -12px rgba($primary, 0.35);
+$shadow-glow: 0 0 40px rgba($primary, 0.2);
+
+// Прочие переменные
+$radius: 1.25rem;
+$radius-md: calc($radius - 2px);
+$radius-sm: calc($radius - 4px);
+$radius-lg: 10px;
+$transition-smooth: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+$transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+$glass-bg: rgba(#1c1d26, 0.4);
+$glass-border: rgba($foreground, 0.1);
+$blur-xl: blur(20px)

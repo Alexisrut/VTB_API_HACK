@@ -1,0 +1,51 @@
+@use "../../styles/vars" as *;
+@use "../../styles/mixins" as *;
+
+.authOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.authBlur {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.authModal {
+  position: relative;
+  z-index: 101;
+  width: 100%;
+  max-width: 450px;
+  margin: 1rem;
+  
+  @include glass-card(false);
+  border: 1px solid $glass-border;
+  padding: 2.5rem;
+  border-radius: $radius;
+  box-shadow: $shadow-strong;
+
+  animation: slideUp 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0);
+  }
+}

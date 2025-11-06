@@ -1,0 +1,94 @@
+@use "../../styles/vars" as *;
+@use "../../styles/mixins" as *;
+
+.header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+
+  .headerText {
+    text-align: center
+  }
+}
+
+.iconBox {
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: $radius-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba($success, 0.2);
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.subtitle {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: $muted-foreground;
+}
+
+.content {
+  padding-top: 0.5rem;
+}
+
+.tableWrap {
+  @include glass-card();
+  border-radius: $radius;
+  border: 1px solid rgba($border, 0.5);
+  overflow: hidden;
+}
+
+.tableRow {
+  transition: background-color 160ms ease;
+}
+
+.tableRowHover:hover {
+  background: rgba($foreground, 0.02);
+}
+
+.counterparty {
+  font-weight: 600;
+}
+
+.amount {
+  font-weight: 700;
+  font-size: 1.125rem;
+}
+
+.dueDate {
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.badgePending {
+  background: rgba($warning, 0.2);
+  color: $warning;
+  border: 1px solid rgba($warning, 0.3);
+  font-weight: 700;
+}
+
+.badgeOverdue {
+  background: rgba($danger, 0.2);
+  color: $danger;
+  border: 1px solid rgba($danger, 0.3);
+  font-weight: 700;
+}
+
+.btnOutlineHover {
+  transition: all 160ms ease;
+}
+
+.btnOutlineHover:hover {
+  background: $primary;
+  color: $primary-foreground;
+  border-color: $primary;
+}

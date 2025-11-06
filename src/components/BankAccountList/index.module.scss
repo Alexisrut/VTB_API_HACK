@@ -1,0 +1,138 @@
+@use "../../styles/vars" as *;
+@use "../../styles/mixins" as *;
+
+.bankCard {
+  @include glass-card(false);
+  border: 2px solid $glass-border;
+  transition: all 0.3s ease;
+  box-shadow: $shadow-soft;
+
+}
+
+.bankCardHeader {
+  gap: 0.75rem;
+}
+
+.headerGroup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.headerIconBg {
+  height: 2.5rem;
+  width: 2.5rem;
+  border-radius: $radius;
+  background-color: rgba($accent, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.headerIcon {
+  height: 1.25rem;
+  width: 1.25rem;
+  color: $accent;
+}
+
+.bankCardTitle {
+  font-weight: 700;
+}
+
+.bankCardSubtitle {
+  font-size: 0.875rem;
+  color: $muted-foreground;
+  margin-top: 0.25rem;
+}
+
+.bankCardContent {
+  padding-top: 0.5rem;
+}
+
+.accountList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+
+.accountItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem; 
+  border-radius: $radius * 1.2;
+  border: 1px solid rgba($border, 0.5);
+  background-color: rgba($secondary, 0.3);
+  transition: all 0.3s ease;
+
+  &:hover {
+    background-color: rgba($secondary, 0.5);
+    border-color: rgba($accent, 0.3);
+  }
+}
+
+.itemDetails {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+
+.itemIconBg {
+  height: 3rem;
+  width: 3rem;
+  flex-shrink: 0;
+  border-radius: $radius;
+  background-color: rgba($accent, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+
+  .accountItem:hover & {
+    background-color: rgba($accent, 0.3);
+  }
+}
+
+.itemIcon {
+  height: 1.5rem;
+  width: 1.5rem;
+  color: $accent;
+}
+
+.itemBank {
+  font-weight: 700;
+  color: $foreground;
+  font-size: 1.125rem;
+}
+
+.itemSync {
+  font-size: 0.75rem;
+  color: $muted-foreground;
+  margin-top: 0.25rem;
+}
+
+.itemBalance {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.balanceAmount {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: $foreground;
+}
+
+.statusBadge {
+  background-color: rgba($accent, 0.2);
+  color: $accent;
+  border-color: rgba($accent, 0.3);
+  &:hover {
+    background-color: rgba($accent, 0.3);
+  }
+}
