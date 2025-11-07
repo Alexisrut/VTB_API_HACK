@@ -96,3 +96,8 @@ export const startBankOAuth = () => {
   // Просто перенаправляем пользователя на эндпоинт нашего бэкенда
   window.location.href = `${API_URL}/auth/oauth/authorize`;
 };
+
+export const logout = () => {
+  // Очистка токенов происходит на клиенте через eraseCookie
+  // Можно добавить вызов API для инвалидации токена на сервере, если нужно
+};

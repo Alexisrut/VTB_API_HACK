@@ -11,6 +11,31 @@ $xl: 1280px;
   align-items: center;
 }
 
+.userButton {
+  width: 48px;
+  height: 48px;
+  border-radius: $radius-md;
+  background: $gradient-primary;
+  border: 1px solid $primary;
+  color: $foreground;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: $transition-smooth;
+  box-shadow: $shadow-soft;
+
+  &:hover {
+    box-shadow: $shadow-medium, $shadow-glow;
+    transform: translateY(-2px);
+    border-color: $primary-light;
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
 .dashboardContainer {
   display: flex;
   flex-direction: column;

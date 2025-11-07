@@ -62,6 +62,11 @@ src/
       index.module.scss
       index.tsx
   pages/
+    Auth/
+      AuthForm.module.scss
+      AuthForm.tsx
+      index.module.scss
+      index.tsx
     home/
       index.module.scss
       index.tsx
@@ -89,6 +94,10 @@ src/
     tooltip/
       index.module.scss
       index.tsx
+  utils/
+    api.ts
+    cookies.ts
+    zod.ts
   App.tsx
   main.tsx
 .gitignore
@@ -138,7 +147,7 @@ This section contains the contents of the repository's files.
 .headerIconBg {
   height: 2.5rem;
   width: 2.5rem;
-  border-radius: $radius; // rounded-xl
+  border-radius: $radius;
   background-color: rgba($accent, 0.2);
   display: flex;
   align-items: center;
@@ -200,7 +209,7 @@ This section contains the contents of the repository's files.
   height: 3rem;
   width: 3rem;
   flex-shrink: 0;
-  border-radius: $radius; // rounded-xl
+  border-radius: $radius;
   background-color: rgba($accent, 0.2);
   display: flex;
   align-items: center;
@@ -255,7 +264,6 @@ This section contains the contents of the repository's files.
 </file>
 
 <file path="src/components/BankAccountList/index.tsx">
-// Файл: src/components/BankAccountsList.tsx
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Badge } from "../../ui/badge";
 import { Building2 } from "lucide-react";
@@ -347,7 +355,7 @@ export default function BankAccountsList() {
 
 //   &:hover {
 //     border-color: rgba($primary, 0.4);
-//     box-shadow: $shadow-medium, 0 0 40px rgba($primary, 0.2); // Тень с цветом primary
+//     box-shadow: $shadow-medium, 0 0 40px rgba($primary, 0.2);
 //     transform: translateY(-2px);
 //   }
 }
@@ -843,6 +851,7 @@ import {
   Menu,
   X,
   Sparkles,
+  CircleUser
 } from "lucide-react";
 import cn from "classnames"
 import styles from "./index.module.scss";
@@ -862,13 +871,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={styles.root}>
-      {/* Desktop floating sidebar */}
       <aside className={styles.sidebar}>
         <div className={styles.sidebarInner}>
           <Link to="/" className={styles.brandLink} title="FinFlow">
             <Sparkles />
           </Link>
-
+          {/* <Link to="/login" className={styles.brandLink} title="auth">
+            <CircleUser />
+          </Link> */}
           <nav className={styles.nav} aria-label="Primary">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href;
@@ -968,7 +978,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 </file>
 
 <file path="src/components/ReceivablesTable/index.module.scss">
-/* Файл: src/components/ReceivablesTable.module.scss */
 @use "../../styles/vars" as *;
 @use "../../styles/mixins" as *;
 
@@ -1312,7 +1321,7 @@ export default function ReceivablesTable() {
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "../../ui/card";
 import cn from "classnames"
-import styles from "./index.module.scss"; // Импортируем SCSS
+import styles from "./index.module.scss";
 
 type Variant = "default" | "success" | "warning" | "danger";
 
@@ -1321,7 +1330,7 @@ interface StatCardProps {
   value: string;
   subtitle?: string;
   icon: LucideIcon;
-  variant?: Variant; // Переименовываем в Variant, чтобы избежать конфликта с SCSS-классами
+  variant?: Variant;
   trend?: {
     value: string;
     isPositive: boolean;
@@ -1336,28 +1345,25 @@ export default function StatCard({
   variant = "default",
   trend,
 }: StatCardProps) {
-    
-  // 1. Упрощаем: Удаляем все Tailwind-объекты стилей. 
-  // Вся логика вариантов теперь в SCSS.
 
-  const trendClass = trend?.isPositive 
-    ? styles.trendPositive 
+
+  const trendClass = trend?.isPositive
+    ? styles.trendPositive
     : styles.trendNegative;
 
   return (
-    // Применяем базовый класс и класс варианта из SCSS
     <Card className={cn(styles.statCard, styles[variant])}>
       <CardContent className={styles.cardContent}>
         <div className={styles.contentWrapper}>
-          
+
           <div className={styles.textSection}>
             <p className={styles.title}>{title}</p>
             <p className={styles.value}>{value}</p>
-            
+
             {subtitle && (
               <p className={styles.subtitle}>{subtitle}</p>
             )}
-            
+
             {trend && (
               <div className={styles.trendContainer}>
                 <span className={cn(styles.trendBadge, trendClass)}>
@@ -1366,8 +1372,7 @@ export default function StatCard({
               </div>
             )}
           </div>
-          
-          {/* Классы bg и text для иконки теперь привязаны к .iconBg через SCSS миксин */}
+
           <div className={styles.iconBg}>
             <Icon className={styles.icon} strokeWidth={2.5} />
           </div>
@@ -1378,8 +1383,87 @@ export default function StatCard({
 }
 </file>
 
+<file path="src/pages/Auth/index.module.scss">
+@use "../../styles/vars" as *;
+@use "../../styles/mixins" as *;
+
+.authOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease;
+}
+
+.authBlur {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.authModal {
+  position: relative;
+  z-index: 101;
+  width: 100%;
+  max-width: 450px;
+  margin: 1rem;
+  
+  @include glass-card(false);
+  border: 1px solid $glass-border;
+  padding: 2.5rem;
+  border-radius: $radius;
+  box-shadow: $shadow-strong;
+
+  animation: slideUp 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px);
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0);
+  }
+}
+</file>
+
+<file path="src/pages/Auth/index.tsx">
+import React from "react";
+import styles from "./index.module.scss";
+import { AuthForm } from "./AuthForm";
+import cn from "classnames";
+
+interface AuthModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className={cn(styles.authOverlay, "auth-modal-overlay")}>
+      <div className={styles.authBlur} onClick={onClose}></div>
+
+      <div className={styles.authModal}>
+        <AuthForm onClose={onClose} />
+      </div>
+    </div>
+  );
+};
+</file>
+
 <file path="src/pages/home/index.module.scss">
-/* Файл: src/pages/Index.module.scss */
 @use "../../styles/vars.scss" as *;
 @use "../../styles/mixins" as *;
 
@@ -1387,39 +1471,43 @@ $md: 768px;
 $lg: 1024px;
 $xl: 1280px;
 
-/* Главный контейнер дашборда: space-y-10 */
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .dashboardContainer {
   display: flex;
   flex-direction: column;
-  gap: 2.5rem; // space-y-10
+  gap: 2.5rem;
 }
 
-/* Секция заголовка: space-y-3 */
+
 .headerSection {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem; // space-y-3
+  gap: 0.75rem;
 }
 
-/* Заголовок: text-5xl font-bold text-foreground text-glow */
+
 .mainTitle {
-  font-size: 3rem; // text-5xl
-  font-weight: 700; // font-bold
+  font-size: 3rem;
+  font-weight: 700;
   color: $foreground;
-  @include text-glow($primary); // Используем наш миксин для свечения
+  @include text-glow($primary);
 }
 
-/* Подзаголовок: text-lg text-muted-foreground */
+
 .subtitle {
-  font-size: 1.125rem; // text-lg
+  font-size: 1.125rem;
   color: $muted-foreground;
 }
 
-/* Сетка статистики: grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 */
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 1.5rem; // gap-6
+  gap: 1.5rem;
 
   @media (min-width: $md) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1430,11 +1518,10 @@ $xl: 1280px;
   }
 }
 
-/* Сетка графиков и таблиц: grid grid-cols-1 xl:grid-cols-2 gap-8 */
 .chartsGrid {
   display: grid;
   grid-template-columns: repeat(1, minmax(0, 1fr));
-  gap: 2rem; // gap-8
+  gap: 2rem;
 
   @media (min-width: $xl) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1443,22 +1530,41 @@ $xl: 1280px;
 </file>
 
 <file path="src/pages/home/index.tsx">
-// Файл: src/pages/Index.tsx
 import Layout from "../../components/Layout";
 import StatCard from "../../components/StatCard";
 import CashFlowChart from "../../components/CashFlowChart";
 import BankAccountsList from "../../components/BankAccountList";
 import ReceivablesTable from "../../components/ReceivablesTable";
 import { Wallet, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
-import styles from "./index.module.scss"; // Импорт SCSS
+import styles from "./index.module.scss";
+import { useState } from "react";
+import { AuthModal } from "../Auth";
+import { Button } from "../../ui/button";
 
 export default function Index() {
+
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+
   return (
     <Layout>
+
+      <AuthModal 
+        isOpen={isAuthOpen} 
+        onClose={() => setIsAuthOpen(false)} 
+      />
+
       <div className={styles.dashboardContainer}>
         
         <div className={styles.headerSection}>
+          <div className={styles.headerRow}>
           <h1 className={styles.mainTitle}>Дашборд</h1>
+          <Button 
+              variant="default" 
+              onClick={() => setIsAuthOpen(true)}
+            >
+              Войти
+          </Button>
+          </div>
           <p className={styles.subtitle}>
             Финансовый обзор и ключевые показатели
           </p>
@@ -1721,35 +1827,26 @@ $blur-xl: blur(20px)
 </file>
 
 <file path="src/ui/badge/index.module.scss">
-/* Файл: src/components/ui/badge.module.scss */
 @use "../../styles/vars" as *;
 
-/*
-  Базовые стили из cva:
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors 
-  focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-*/
+
 .badge {
   display: inline-flex;
   align-items: center;
-  border-radius: 9999px; // rounded-full
+  border-radius: 9999px;
   border: 1px solid;
-  padding: 0.125rem 0.625rem; // px-2.5 py-0.5
-  font-size: 0.75rem; // text-xs
-  font-weight: 600; // font-semibold
+  padding: 0.125rem 0.625rem;
+  font-size: 0.75rem; 
+  font-weight: 600; 
   transition: background-color 0.2s, color 0.2s, border-color 0.2s;
 
   &:focus {
     outline: none;
-    box-shadow: 0 0 0 2px $background, 0 0 0 4px $ring; // ring-2 ring-ring ring-offset-2
+    box-shadow: 0 0 0 2px $background, 0 0 0 4px $ring;
   }
 }
 
-/*
-  Варианты:
-*/
 
-// default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80"
 .default {
   border-color: transparent;
   background-color: $primary;
@@ -1759,7 +1856,6 @@ $blur-xl: blur(20px)
   }
 }
 
-// secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80"
 .secondary {
   border-color: transparent;
   background-color: $secondary;
@@ -1769,28 +1865,26 @@ $blur-xl: blur(20px)
   }
 }
 
-// destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80"
 .destructive {
   border-color: transparent;
-  background-color: $danger; // $destructive заменён на $danger
+  background-color: $danger;
   color: $destructive-foreground;
   &:hover {
     background-color: rgba($danger, 0.8);
   }
 }
 
-// outline: "text-foreground"
+
 .outline {
   color: $foreground;
-  border-color: $border; // Добавим, т.к. прозрачный по умолчанию не видно
+  border-color: $border; 
 }
 </file>
 
 <file path="src/ui/badge/index.tsx">
-// Файл: src/components/ui/badge.tsx
 import * as React from "react";
 import cn from "classnames";
-import styles from "./index.module.scss"; // Импорт SCSS
+import styles from "./index.module.scss";
 
 type BadgeVariant = "default" | "secondary" | "destructive" | "outline";
 
@@ -1806,16 +1900,8 @@ export { Badge };
 </file>
 
 <file path="src/ui/button/index.module.scss">
-/* Файл: src/components/ui/button.module.scss */
 @use "../../styles/vars" as *;
 
-/*
-  Базовые стили из cva (для size: default):
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm 
-  font-medium ring-offset-background transition-colors focus-visible:outline-none 
-  focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 
-  disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2"
-*/
 .button {
   display: inline-flex;
   align-items: center;
@@ -1823,14 +1909,14 @@ export { Badge };
   gap: 0.5rem;
   white-space: nowrap;
   border-radius: $radius-md;
-  font-size: 0.875rem; // text-sm
-  font-weight: 500; // font-medium
+  font-size: 0.875rem;
+  font-weight: 500;
   transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
   cursor: pointer;
 
   &:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px $background, 0 0 0 4px $ring; // ring-2 ring-ring ring-offset-2
+    box-shadow: 0 0 0 2px $background, 0 0 0 4px $ring;
   }
 
   &:disabled {
@@ -1838,59 +1924,51 @@ export { Badge };
     opacity: 0.5;
   }
 
-  // Стили для иконок внутри кнопки
+
   > svg {
     pointer-events: none;
-    width: 1rem; // size-4
-    height: 1rem; // size-4
+    width: 1rem;
+    height: 1rem;
     flex-shrink: 0;
   }
 
-  /*
-    Size Variants
-  */
-  
-  // size: default
-  height: 2.5rem; // h-10
-  padding: 0.5rem 1rem; // px-4 py-2
+
+  height: 2.5rem;
+  padding: 0.5rem 1rem;
 }
 
-/* size: sm "h-9 rounded-md px-3" */
+
 .sm {
-  height: 2.25rem; // h-9
-  padding: 0 0.75rem; // px-3
+  height: 2.25rem;
+  padding: 0 0.75rem;
 }
 
-/* size: lg "h-11 rounded-md px-8" */
+
 .lg {
-  height: 2.75rem; // h-11
-  padding: 0 2rem; // px-8
+  height: 2.75rem;
+  padding: 0 2rem;
 }
 
-/* size: icon "h-10 w-10" */
+
 .icon {
-  height: 2.5rem; // h-10
-  width: 2.5rem; // w-10
-  padding: 0; // Иконка должна быть по центру
+  height: 2.5rem;
+  width: 2.5rem;
+  padding: 0;
 }
 
 
-/*
-  Variant Variants
-*/
 
-// default: "bg-primary text-primary-foreground hover:bg-primary/90"
 .default {
   background-color: $primary;
   color: $primary-foreground;
-  border: 1px solid $primary; // Добавим для консистентности
+  border: 1px solid $primary;
   &:hover {
     background-color: rgba($primary, 0.9);
     border-color: rgba($primary, 0.9);
   }
 }
 
-// destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+
 .destructive {
   background-color: $danger;
   color: $destructive-foreground;
@@ -1901,7 +1979,6 @@ export { Badge };
   }
 }
 
-// outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground"
 .outline {
   border: 1px solid $input;
   background-color: $background;
@@ -1913,7 +1990,6 @@ export { Badge };
   }
 }
 
-// secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80"
 .secondary {
   background-color: $secondary;
   color: $secondary-foreground;
@@ -1924,7 +2000,7 @@ export { Badge };
   }
 }
 
-// ghost: "hover:bg-accent hover:text-accent-foreground"
+
 .ghost {
   background-color: transparent;
   border: 1px solid transparent;
@@ -1935,7 +2011,7 @@ export { Badge };
   }
 }
 
-// link: "text-primary underline-offset-4 hover:underline"
+
 .link {
   background-color: transparent;
   border: 1px solid transparent;
@@ -1948,12 +2024,11 @@ export { Badge };
 </file>
 
 <file path="src/ui/button/index.tsx">
-// Файл: src/components/ui/button.tsx
 import * as React from "react";
 import cn from "classnames";
-import styles from "./index.module.scss"; // Импорт SCSS
+import styles from "./index.module.scss";
 
-// Определяем типы для вариантов
+
 type ButtonVariant = "default" | "destructive" | "outline" | "secondary" | "ghost" | "link";
 type ButtonSize = "default" | "sm" | "lg" | "icon";
 
@@ -1969,7 +2044,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         className={cn(
           styles.button,
           styles[variant],
-          size !== "default" && styles[size], // Применяем класс размера, только если он не 'default'
+          size !== "default" && styles[size],
           className,
         )}
         ref={ref}
@@ -1984,68 +2059,59 @@ export { Button };
 </file>
 
 <file path="src/ui/card/index.module.scss">
-/* Файл: src/components/ui/Card.module.scss */
 @use "../../styles/vars" as *;
 
-/* Переводим Tailwind-классы в SCSS:
-  "rounded-lg border bg-card text-card-foreground shadow-sm"
-*/
 .card {
   border-radius: $radius-lg;
   border: 1px solid $border;
   background-color: $card;
   color: $card-foreground;
-  box-shadow: $shadow-soft; // shadow-sm
+  box-shadow: $shadow-soft;
 }
 
-/* "flex flex-col space-y-1.5 p-6" */
+
 .cardHeader {
   display: flex;
   flex-direction: column;
-  padding: 1.5rem; // p-6
+  padding: 1.5rem;
   
-  // space-y-1.5
   > *:not([hidden]) ~ *:not([hidden]) {
-    margin-top: 0.375rem; // 1.5 * 0.25rem
+    margin-top: 0.375rem;
   }
 }
 
-/* "text-2xl font-semibold leading-none tracking-tight" */
+
 .cardTitle {
-  font-size: 1.5rem; // 2xl
-  font-weight: 600; // font-semibold
-  line-height: 1; // leading-none
-  letter-spacing: -0.025em; // tracking-tight
+  font-size: 1.5rem; 
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.025em;
 }
 
-/* "text-sm text-muted-foreground" */
 .cardDescription {
-  font-size: 0.875rem; // text-sm
+  font-size: 0.875rem;
   color: $muted-foreground;
 }
 
-/* "p-6 pt-0" */
 .cardContent {
-  padding: 1.5rem; // p-6
-  padding-top: 0; // pt-0
+  padding: 1.5rem;
+  padding-top: 0;
 }
 
-/* "flex items-center p-6 pt-0" */
 .cardFooter {
   display: flex;
   align-items: center;
-  padding: 1.5rem; // p-6
-  padding-top: 0; // pt-0
+  padding: 1.5rem;
+  padding-top: 0;
 }
 </file>
 
 <file path="src/ui/card/index.tsx">
-// Файл: src/components/ui/Card.tsx
 import {forwardRef, type HTMLAttributes} from "react";
 import cn from "classnames";
-import styles from "./index.module.scss"; // 1. Импортируем модуль SCSS
+import styles from "./index.module.scss";
 
-// 2. Заменяем `cn(...)` на `styles.card` и т.д.
+
 const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
     <div ref={ref} className={cn(styles.card, className)} {...props} />
 ));
@@ -2088,7 +2154,6 @@ export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent }
 </file>
 
 <file path="src/ui/sonner/index.tsx">
-// Файл: src/components/ui/sonner.tsx
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, toast } from "sonner";
 
@@ -2100,9 +2165,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
-      className="toaster group" // 'toaster' и 'group' важны для наших SCSS-селекторов
+      className="toaster group"
       {...props}
-      // Мы удалили toastOptions, так как стили теперь глобальные
     />
   );
 };
@@ -2111,7 +2175,6 @@ export { Toaster, toast };
 </file>
 
 <file path="src/ui/table/index.module.scss">
-/* Файл: src/components/ui/table.module.scss */
 @use "../../styles/vars" as *;
 
 .tableWrapper {
@@ -2123,18 +2186,17 @@ export { Toaster, toast };
 .table {
   width: 100%;
   caption-side: bottom;
-  font-size: 0.875rem; // text-sm
+  font-size: 0.875rem;
 }
 
 .tableHeader {
-  // [&_tr]:border-b
+
   tr {
     border-bottom: 1px solid $border;
   }
 }
 
 .tableBody {
-  // [&_tr:last-child]:border-0
   tr:last-child {
     border-bottom: 0;
   }
@@ -2143,8 +2205,7 @@ export { Toaster, toast };
 .tableFooter {
   border-top: 1px solid $border;
   background-color: rgba($muted, 0.5);
-  font-weight: 500; // font-medium
-  // [&>tr]:last:border-b-0
+  font-weight: 500;
   tr:last-child {
     border-bottom: 0;
   }
@@ -2153,50 +2214,49 @@ export { Toaster, toast };
 .tableRow {
   border-bottom: 1px solid $border;
   transition: background-color 0.2s;
-  // data-[state=selected]:bg-muted
+
   &[data-state="selected"] {
     background-color: $muted;
   }
-  // hover:bg-muted/50
+
   &:hover {
     background-color: rgba($muted, 0.5);
   }
 }
 
 .tableHead {
-  height: 3rem; // h-12
-  padding: 0 1rem; // px-4
+  height: 3rem; 
+  padding: 0 1rem; 
   text-align: left;
   vertical-align: middle;
-  font-weight: 500; // font-medium
+  font-weight: 500; 
   color: $muted-foreground;
-  // [&:has([role=checkbox])]:pr-0
+
   &:has([role="checkbox"]) {
     padding-right: 0;
   }
 }
 
 .tableCell {
-  padding: 1rem; // p-4
+  padding: 1rem;
   vertical-align: middle;
-  // [&:has([role=checkbox])]:pr-0
+
   &:has([role="checkbox"]) {
     padding-right: 0;
   }
 }
 
 .tableCaption {
-  margin-top: 1rem; // mt-4
-  font-size: 0.875rem; // text-sm
+  margin-top: 1rem; 
+  font-size: 0.875rem; 
   color: $muted-foreground;
 }
 </file>
 
 <file path="src/ui/table/index.tsx">
-// Файл: src/components/ui/table.tsx
 import * as React from "react";
 import cn from "classnames";
-import styles from "./index.module.scss"; // Импорт SCSS
+import styles from "./index.module.scss";
 
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
@@ -2260,25 +2320,20 @@ export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableC
 </file>
 
 <file path="src/ui/tooltip/index.module.scss">
-/* Файл: src/components/ui/tooltip.module.scss */
 @use "../../styles/vars" as *;
 
-/*
-  "z-50 overflow-hidden rounded-md border bg-popover px-3 py-1.5 
-  text-sm text-popover-foreground shadow-md"
-*/
+
 .tooltipContent {
   z-index: 50;
   overflow: hidden;
   border-radius: $radius-md;
   border: 1px solid $border;
   background-color: $popover;
-  padding: 0.375rem 0.75rem; // px-3 py-1.5
-  font-size: 0.875rem; // text-sm
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
   color: $popover-foreground;
   box-shadow: $shadow-medium;
   
-  // Анимации
   &[data-state="open"] {
     animation: fade-in 0.2s ease;
   }
@@ -2299,11 +2354,10 @@ export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableC
 </file>
 
 <file path="src/ui/tooltip/index.tsx">
-// Файл: src/components/ui/tooltip.tsx
 import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import cn from "classnames"
-import styles from "./index.module.scss"; // Импорт SCSS
+import styles from "./index.module.scss";
 
 const TooltipProvider = TooltipPrimitive.Provider;
 
@@ -2312,13 +2366,13 @@ const Tooltip = TooltipPrimitive.Root;
 const TooltipTrigger = TooltipPrimitive.Trigger;
 
 const TooltipContent = React.forwardRef<
-  React.ElementRef<typeof TooltipPrimitive.Content>,
+  React.ComponentRef<typeof TooltipPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
 >(({ className, sideOffset = 4, ...props }, ref) => (
   <TooltipPrimitive.Content
     ref={ref}
     sideOffset={sideOffset}
-    className={cn(styles.tooltipContent, className)} // Применяем класс
+    className={cn(styles.tooltipContent, className)}
     {...props}
   />
 ));
@@ -2327,11 +2381,75 @@ TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };
 </file>
 
+<file path="src/utils/cookies.ts">
+import Cookies from 'js-cookie';
+
+
+export function setCookie(name: string, value: string, days: number) {
+
+  Cookies.set(name, value, { expires: days, path: '/' });
+}
+
+export function getCookie(name: string): string | null {
+  return Cookies.get(name) || null;
+}
+
+export function eraseCookie(name: string) {
+  Cookies.remove(name, { path: '/' });
+}
+</file>
+
+<file path="src/utils/zod.ts">
+import { z } from 'zod';
+
+const passwordSchema = z.string()
+    .min(8, 'Пароль должен содержать минимум 8 символов')
+    .max(100, 'Пароль не должен превышать 100 символов')
+    .regex(/[A-Z]/, 'Пароль должен содержать хотя бы одну заглавную букву')
+    .regex(/[a-z]/, 'Пароль должен содержать хотя бы одну строчную букву')
+    .regex(/[0-9]/, 'Пароль должен содержать хотя бы одну цифру')
+    .default("");
+
+
+export const zUserSignIn = z.object({
+    email: z.email()
+        .min(5, 'Email должен содержать минимум 5 символов')
+        .max(100, 'Email не должен превышать 100 символов')
+        .default(""),
+
+    password: passwordSchema
+})
+
+
+export const zUserSignUp = zUserSignIn.extend({
+    firstName: z.string()
+        .min(2, 'Имя должно содержать минимум 2 символа')
+        .max(50, 'Имя не должно превышать 50 символов')
+        .regex(/^[a-zA-Zа-яА-ЯёЁ\s\-]+$/, 'Имя может содержать только буквы, пробелы и дефисы')
+        .default(""),
+
+    lastName: z.string()
+        .min(2, 'Фамилия должна содержать минимум 2 символа')
+        .max(50, 'Фамилия не должна превышать 50 символов')
+        .regex(/^[a-zA-Zа-яА-ЯёЁ\s\-]+$/, 'Фамилия может содержать только буквы, пробелы и дефисы')
+        .default(""),
+
+    phone: z.string()
+        .min(10, 'Телефон должен содержать минимум 10 цифр')
+        .max(15, 'Телефон не должен превышать 15 символов')
+        .regex(/^\+?[0-9\s\-\(\)]+$/, 'Введите корректный номер телефона')
+        .default(""),
+
+});
+
+export type RegisterFormData = z.infer<typeof zUserSignUp>;
+export type SignInFormData = z.infer<typeof zUserSignIn>;
+</file>
+
 <file path="src/App.tsx">
 import { TooltipProvider } from "./ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-// import Index from "./pages/Index";
 import Home from "./pages/home"
 // import NotFound from "./pages/NotFound";
 
@@ -2397,32 +2515,6 @@ dist-ssr
 *.sw?
 </file>
 
-<file path="eslint.config.js">
-import js from '@eslint/js'
-import globals from 'globals'
-import reactHooks from 'eslint-plugin-react-hooks'
-import reactRefresh from 'eslint-plugin-react-refresh'
-import tseslint from 'typescript-eslint'
-import { defineConfig, globalIgnores } from 'eslint/config'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      js.configs.recommended,
-      tseslint.configs.recommended,
-      reactHooks.configs['recommended-latest'],
-      reactRefresh.configs.vite,
-    ],
-    languageOptions: {
-      ecmaVersion: 2020,
-      globals: globals.browser,
-    },
-  },
-])
-</file>
-
 <file path="index.html">
 <!doctype html>
 <html lang="en">
@@ -2437,50 +2529,6 @@ export default defineConfig([
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-</file>
-
-<file path="package.json">
-{
-  "name": "frontend-2",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@radix-ui/react-toast": "^1.2.15",
-    "@radix-ui/react-tooltip": "^1.2.8",
-    "@tanstack/react-query": "^5.90.6",
-    "classnames": "^2.5.1",
-    "lucide-react": "^0.552.0",
-    "next-themes": "^0.4.6",
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
-    "react-router-dom": "^7.9.5",
-    "recharts": "^3.3.0",
-    "sass": "^1.93.3",
-    "sonner": "^2.0.7"
-  },
-  "devDependencies": {
-    "@eslint/js": "^9.36.0",
-    "@types/classnames": "^2.3.0",
-    "@types/node": "^24.6.0",
-    "@types/react": "^19.1.16",
-    "@types/react-dom": "^19.1.9",
-    "@vitejs/plugin-react": "^5.0.4",
-    "eslint": "^9.36.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.22",
-    "globals": "^16.4.0",
-    "typescript": "~5.9.3",
-    "typescript-eslint": "^8.45.0",
-    "vite": "^7.1.7"
-  }
-}
 </file>
 
 <file path="README.md">
@@ -2644,10 +2692,568 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  // server: {
+  //   allowedHosts: true
+  // } // - вот это для просмотра через туннель
   server: {
-    allowedHosts: true
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      }
+    }
   }
 })
+</file>
+
+<file path="src/pages/Auth/AuthForm.tsx">
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import React, { useState } from "react";
+import { Formik, Form, Field, ErrorMessage } from "formik";
+import styles from "./AuthForm.module.scss";
+import { Button } from "../../ui/button";
+import { toast } from "sonner";
+import * as api from "../../utils/api";
+import { setCookie } from "../../utils/cookies";
+import { zUserSignIn, zUserSignUp } from "../../utils/zod";
+import { toFormikValidationSchema } from 'zod-formik-adapter';
+
+type View = "login" | "register" | "verify";
+
+interface AuthFormProps {
+  onClose: () => void;
+}
+
+export const AuthForm: React.FC<AuthFormProps> = ({ onClose }) => {
+  const [view, setView] = useState<View>("login");
+  
+  const [phoneForVerify, setPhoneForVerify] = useState("");
+
+  const handleLogin = async (values: any, { setSubmitting }: any) => {
+    try {
+      const { data } = await api.login(values.email, values.password);
+      setCookie("access_token", data.access_token, 15 / (24 * 60));
+      setCookie("refresh_token", data.refresh_token, 7);
+      toast.success("Вход выполнен успешно!");
+      onClose();
+      // Тут можно обновить стейт приложения (e.g., refetch user)
+    } catch (err) {
+      console.error("❌ Ошибка входа:", err);
+      toast.error("Ошибка входа. Проверьте email или пароль.");
+    }
+    setSubmitting(false);
+  };
+
+  const handleRegister = async (values: any, { setSubmitting }: any) => {
+    try {
+      await api.register({
+        email: values.email,
+        phone_number: values.phone,
+        first_name: values.firstName,
+        last_name: values.lastName,
+        password: values.password,
+      });
+      toast.success("Регистрация успешна! Введите код из SMS.");
+      setPhoneForVerify(values.phone);
+      setView("verify");
+    } catch (err) {
+      console.error("❌ Ошибка регистрации:", err);
+      toast.error("Ошибка регистрации. Такой пользователь уже может существовать.");
+    }
+    setSubmitting(false);
+  };
+
+  const handleVerify = async (values: any, { setSubmitting }: any) => {
+    try {
+      await api.verifySms(phoneForVerify, values.code);
+      toast.success("Телефон успешно подтвержден! Теперь вы можете войти.");
+      setView("login");
+    } catch (err) {
+      console.error("❌ Ошибка верификации:", err);
+      toast.error("Неверный код верификации.");
+    }
+    setSubmitting(false);
+  };
+
+
+  const renderLogin = () => (
+    <Formik
+      initialValues={{ email: "", password: "" }}
+      validationSchema={toFormikValidationSchema(zUserSignIn)}
+      onSubmit={handleLogin}
+    >
+      {({ isSubmitting, isValid, dirty, errors, touched }) => (
+        <Form className={styles.form}>
+          <h2>Вход в FinFlow</h2>
+          
+          <div className={styles.fieldGroup}>
+            <label htmlFor="email">Email</label>
+            <Field id="email" name="email" placeholder="user@example.com" />
+            <ErrorMessage name="email" component="div" className={styles.error} />
+          </div>
+          
+          <div className={styles.fieldGroup}>
+            <label htmlFor="password">Пароль</label>
+            <Field id="password" name="password" type="password" />
+            <ErrorMessage name="password" component="div" className={styles.error} />
+          </div>
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || !isValid || !dirty}
+            variant="default" 
+            size="lg"
+          >
+            {isSubmitting ? "Вход..." : "Войти"}
+          </Button>
+        </Form>
+      )}
+    </Formik>
+  );
+
+  const renderRegister = () => (
+    <Formik
+      initialValues={{ firstName: "", lastName: "", email: "", phone: "", password: "" }}
+      validationSchema={toFormikValidationSchema(zUserSignUp)}
+      onSubmit={handleRegister}
+    >
+      {({ isSubmitting, isValid, dirty, errors, touched }) => (
+        <Form className={styles.form}>
+          <h2>Регистрация</h2>
+          
+          <div className={styles.grid}>
+            <div className={styles.fieldGroup}>
+              <label htmlFor="firstName">Имя</label>
+              <Field id="firstName" name="firstName" />
+              <ErrorMessage name="firstName" component="div" className={styles.error} />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label htmlFor="lastName">Фамилия</label>
+              <Field id="lastName" name="lastName" />
+              <ErrorMessage name="lastName" component="div" className={styles.error} />
+            </div>
+          </div>
+          
+          <div className={styles.fieldGroup}>
+            <label htmlFor="email">Email</label>
+            <Field id="email" name="email" type="email" />
+            <ErrorMessage name="email" component="div" className={styles.error} />
+          </div>
+          
+          <div className={styles.fieldGroup}>
+            <label htmlFor="phone">Телефон</label>
+            <Field id="phone" name="phone" placeholder="+79001234567" />
+            <ErrorMessage name="phone" component="div" className={styles.error} />
+          </div>
+          
+          <div className={styles.fieldGroup}>
+            <label htmlFor="password">Пароль</label>
+            <Field id="password" name="password" type="password" />
+            <ErrorMessage name="password" component="div" className={styles.error} />
+          </div>
+          
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || !isValid || !dirty}
+            variant="default" 
+            size="lg"
+          >
+            {isSubmitting ? "Регистрация..." : "Зарегистрироваться"}
+          </Button>
+        </Form>
+      )}
+    </Formik>
+  );
+
+  const renderVerify = () => (
+    <Formik 
+      initialValues={{ code: "" }} 
+      onSubmit={handleVerify}
+      validate={(values) => {
+        const errors: any = {};
+        if (!values.code) {
+          errors.code = "Обязательное поле";
+        } else if (values.code.length < 6) {
+          errors.code = "Код должен содержать 6 цифр";
+        }
+        return errors;
+      }}
+    >
+      {({ isSubmitting, values, errors, touched }) => (
+        <Form className={styles.form}>
+          <h2>Код из SMS</h2>
+          <p className={styles.subtitle}>
+            Мы отправили код на номер <strong>{phoneForVerify}</strong>
+          </p>
+          
+          <div className={styles.fieldGroup}>
+            <label htmlFor="code">Код</label>
+            <Field 
+              id="code" 
+              name="code" 
+              placeholder="123456" 
+              maxLength={6}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                const value = e.target.value.replace(/\D/g, '');
+                e.target.value = value;
+              }}
+            />
+
+            <ErrorMessage name="code" component="div" className={styles.error} />
+          </div>
+          
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || values.code.length < 6 || !!errors.code}
+            variant="default" 
+            size="lg"
+          >
+            {isSubmitting ? "Проверка..." : "Подтвердить"}
+          </Button>
+        </Form>
+      )}
+    </Formik>
+  );
+
+  return (
+    <div className={styles.authForm}>
+      {view === "login" && renderLogin()}
+      {view === "register" && renderRegister()}
+      {view === "verify" && renderVerify()}
+
+      <div className={styles.footer}>
+        {view !== "verify" && (
+          <Button
+            variant="link"
+            className={styles.switchMode}
+            onClick={() => setView(view === "login" ? "register" : "login")}
+          >
+            {view === "login" ? "Нет аккаунта? Регистрация" : "Уже есть аккаунт? Войти"}
+          </Button>
+        )}
+        
+        {view === 'login' && (
+          <>
+            <div className={styles.divider}><span>ИЛИ</span></div>
+            <Button variant="outline" size="lg" onClick={api.startBankOAuth}>
+              {/* Можно добавить иконку банка */}
+              Войти через Банк (OAuth)
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+</file>
+
+<file path="src/utils/api.ts">
+import axios from "axios";
+import { getCookie, setCookie } from "./cookies";
+
+
+export interface RegisterData {
+  email: string;
+  phone_number: string;
+  first_name: string;
+  last_name: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+}
+
+export interface UserResponse {
+  id: string;
+  email: string;
+  phone_number: string;
+  first_name: string;
+  last_name: string;
+  is_active: boolean;
+}
+
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+const api = axios.create({
+  baseURL: API_URL,
+});
+
+// для автоматического добавления Access Token
+api.interceptors.request.use((config) => {
+  const token = getCookie("access_token");
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// для автоматического обновления токена
+api.interceptors.response.use(
+  (response: any) => response,
+  async (error: { config: any; response: { status: number; }; }) => {
+    const originalRequest = error.config;
+    if (error.response.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      const refreshToken = getCookie("refresh_token");
+
+      if (refreshToken) {
+        try {
+          const { data } = await axios.post<TokenResponse>(
+            `${API_URL}/auth/refresh`,
+            { refresh_token: refreshToken }
+          );
+          setCookie("access_token", data.access_token, 15 / (24 * 60)); // 15 минут
+          setCookie("refresh_token", data.refresh_token, 7); // 7 дней
+          axios.defaults.headers.common["Authorization"] = `Bearer ${data.access_token}`;
+          originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+          return api(originalRequest);
+        } catch (refreshError) {
+          console.error("Refresh token failed", refreshError);
+          // TODO: Очистить куки и сделать редирект на логин
+          return Promise.reject(refreshError);
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+
+
+export const register = (data: RegisterData) => {
+  console.log("api: send register request: ", data)
+  return api.post<UserResponse>("/auth/register", data);
+};
+
+
+export const verifySms = (phone_number: string, code: string) => {
+  return api.post("/auth/verify-sms", { phone_number, code });
+};
+
+export const login = (email: string, password: string) => {
+  return api.post<TokenResponse>("/auth/login", { email, password });
+};
+
+export const getMe = () => {
+  return api.get<UserResponse>("/users/me");
+};
+
+export const startBankOAuth = () => {
+  // Просто перенаправляем пользователя на эндпоинт нашего бэкенда
+  window.location.href = `${API_URL}/auth/oauth/authorize`;
+};
+</file>
+
+<file path="eslint.config.js">
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
+import { defineConfig, globalIgnores } from 'eslint/config'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+      reactHooks.configs['recommended-latest'],
+      reactRefresh.configs.vite,
+    ],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'warn',
+      'no-useless-escape': "off"
+    },
+  },
+])
+</file>
+
+<file path="package.json">
+{
+  "name": "frontend-2",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@radix-ui/react-toast": "^1.2.15",
+    "@radix-ui/react-tooltip": "^1.2.8",
+    "@tanstack/react-query": "^5.90.6",
+    "axios": "^1.13.2",
+    "classnames": "^2.5.1",
+    "formik": "^2.4.6",
+    "js-cookie": "^3.0.5",
+    "lucide-react": "^0.552.0",
+    "next-themes": "^0.4.6",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.9.5",
+    "recharts": "^3.3.0",
+    "sass": "^1.93.3",
+    "sonner": "^2.0.7",
+    "zod": "^4.1.12",
+    "zod-formik-adapter": "^2.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.36.0",
+    "@types/classnames": "^2.3.0",
+    "@types/js-cookie": "^3.0.6",
+    "@types/node": "^24.6.0",
+    "@types/react": "^19.1.16",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^5.0.4",
+    "eslint": "^9.36.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.22",
+    "globals": "^16.4.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.45.0",
+    "vite": "^7.1.7"
+  }
+}
+</file>
+
+<file path="src/pages/Auth/AuthForm.module.scss">
+@use "../../styles/vars" as *;
+
+.authForm {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+
+  h2 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: $foreground;
+    text-align: center;
+    margin-bottom: 0.5rem;
+  }
+}
+
+.subtitle {
+  color: $muted-foreground;
+  text-align: center;
+  font-size: 0.875rem;
+  margin-top: -1rem;
+  margin-bottom: 0.5rem;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  label {
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: $muted-foreground;
+  }
+
+  input,
+  select {
+    width: 100%;
+    background-color: $input;
+    border: 1px solid $border;
+    color: $foreground;
+    border-radius: $radius-md;
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+
+    &:focus {
+      outline: none;
+      border-color: $primary;
+      box-shadow: 0 0 0 2px rgba($primary, 0.3);
+    }
+
+    &:-webkit-autofill,
+    &:-webkit-autofill:hover,
+    &:-webkit-autofill:focus,
+    &:-webkit-autofill:active {
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: $foreground;
+      -webkit-box-shadow: 0 0 0px 1000px $input inset;
+      box-shadow: 0 0 0px 1000px $input inset;
+      transition: background-color 5000s ease-in-out 0s;
+      border-color: $border;
+    }
+  }
+}
+
+
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  gap: 1rem;
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.switchMode {
+  color: $primary-light;
+  text-decoration: none;
+
+  &:hover {
+    color: $foreground;
+    text-decoration: none;
+  }
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: $muted-foreground;
+  font-size: 0.75rem;
+  font-weight: 600;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid $border;
+  }
+
+  span {
+    padding: 0 1rem;
+  }
+}
+
+.error {
+  color: var(--danger);
+  font-size: 0.8rem;
+  margin-top: 4px;
+  text-align: left;
+}
 </file>
 
 </files>

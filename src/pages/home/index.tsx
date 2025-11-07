@@ -3,15 +3,26 @@ import StatCard from "../../components/StatCard";
 import CashFlowChart from "../../components/CashFlowChart";
 import BankAccountsList from "../../components/BankAccountList";
 import ReceivablesTable from "../../components/ReceivablesTable";
-import { Wallet, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import { Wallet, TrendingUp, TrendingDown, AlertCircle, CircleUser } from "lucide-react";
 import styles from "./index.module.scss";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AuthModal } from "../Auth";
-import { Button } from "../../ui/button";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function Index() {
 
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
+
+  const handleUserClick = () => {
+    if (isAuthenticated) {
+      navigate("/profile");
+    } else {
+      setIsAuthOpen(true);
+    }
+  };
 
   return (
     <Layout>
@@ -26,12 +37,13 @@ export default function Index() {
         <div className={styles.headerSection}>
           <div className={styles.headerRow}>
           <h1 className={styles.mainTitle}>Дашборд</h1>
-          <Button 
-              variant="default" 
-              onClick={() => setIsAuthOpen(true)}
+          <button 
+              className={styles.userButton}
+              onClick={handleUserClick}
+              aria-label={isAuthenticated ? "Профиль" : "Войти"}
             >
-              Войти
-          </Button>
+              <CircleUser size={24} />
+          </button>
           </div>
           <p className={styles.subtitle}>
             Финансовый обзор и ключевые показатели

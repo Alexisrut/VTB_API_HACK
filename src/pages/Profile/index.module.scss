@@ -1,0 +1,126 @@
+@use "../../styles/vars.scss" as *;
+@use "../../styles/mixins" as *;
+
+.profileContainer {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100%;
+  padding: 2rem 1rem;
+}
+
+.profileCard {
+  width: 100%;
+  max-width: 600px;
+  @include glass-card(true);
+  border-radius: $radius;
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.profileHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: $gradient-primary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $foreground;
+  box-shadow: $shadow-glow;
+  border: 3px solid $primary;
+}
+
+.profileName {
+  font-size: 2rem;
+  font-weight: 700;
+  color: $foreground;
+  @include text-glow($primary);
+  text-align: center;
+}
+
+.profileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.infoItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: $secondary;
+  border-radius: $radius-md;
+  border: 1px solid $border;
+  transition: $transition-smooth;
+
+  &:hover {
+    border-color: $primary;
+    box-shadow: $shadow-soft;
+  }
+}
+
+.infoIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: $radius-sm;
+  background: $gradient-primary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $foreground;
+  flex-shrink: 0;
+}
+
+.infoContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.infoLabel {
+  font-size: 0.875rem;
+  color: $muted-foreground;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.infoValue {
+  font-size: 1.125rem;
+  color: $foreground;
+  font-weight: 500;
+}
+
+.profileActions {
+  display: flex;
+  justify-content: center;
+  padding-top: 1rem;
+}
+
+.logoutButton {
+  min-width: 200px;
+}
+
+.loading,
+.error {
+  text-align: center;
+  color: $foreground;
+  font-size: 1.25rem;
+  padding: 2rem;
+}
+
+.error {
+  color: $danger;
+}
+

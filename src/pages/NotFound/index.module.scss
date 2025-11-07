@@ -1,0 +1,71 @@
+@use "../../styles/vars" as *;
+@use "../../styles/mixins" as *;
+
+.pageContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  text-align: center;
+  padding: 2rem;
+  background: $gradient-card;
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: $gradient-glow;
+    pointer-events: none;
+  }
+
+  p {
+    font-size: 3rem;
+    color: $foreground;
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+    
+    @include gradient-text($gradient-primary);
+    
+    @include text-glow($primary);
+  }
+
+  img {
+    max-width: 400px;
+    width: 100%;
+    height: auto;
+    border-radius: $radius-lg;
+    
+    @include glass-card();
+    
+    box-shadow: $shadow-medium;
+  }
+
+  @media (max-width: 768px) {
+    padding: 1rem;
+    
+    p {
+      font-size: 2rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    img {
+      max-width: 250px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    p {
+      font-size: 1.4rem;
+    }
+    
+    img {
+      max-width: 200px;
+    }
+  }
+}

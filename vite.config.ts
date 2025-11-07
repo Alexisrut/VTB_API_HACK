@@ -7,4 +7,13 @@ export default defineConfig({
   // server: {
   //   allowedHosts: true
   // } // - вот это для просмотра через туннель
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, '')
+      }
+    }
+  }
 })

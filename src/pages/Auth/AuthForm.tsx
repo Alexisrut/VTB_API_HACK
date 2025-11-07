@@ -8,6 +8,7 @@ import * as api from "../../utils/api";
 import { setCookie } from "../../utils/cookies";
 import { zUserSignIn, zUserSignUp } from "../../utils/zod";
 import { toFormikValidationSchema } from 'zod-formik-adapter';
+import axios from "axios";
 
 type View = "login" | "register" | "verify";
 
@@ -27,7 +28,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onClose }) => {
       setCookie("refresh_token", data.refresh_token, 7);
       toast.success("Вход выполнен успешно!");
       onClose();
-      // Тут можно обновить стейт приложения (e.g., refetch user)
+      // Обновляем страницу, чтобы хук useAuth сработал заново
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
     } catch (err) {
       console.error("❌ Ошибка входа:", err);
       toast.error("Ошибка входа. Проверьте email или пароль.");
@@ -36,23 +40,41 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onClose }) => {
   };
 
   const handleRegister = async (values: any, { setSubmitting }: any) => {
-    try {
-      await api.register({
-        email: values.email,
-        phone_number: values.phone,
-        first_name: values.firstName,
-        last_name: values.lastName,
-        password: values.password,
-      });
-      toast.success("Регистрация успешна! Введите код из SMS.");
-      setPhoneForVerify(values.phone);
-      setView("verify");
-    } catch (err) {
-      console.error("❌ Ошибка регистрации:", err);
-      toast.error("Ошибка регистрации. Такой пользователь уже может существовать.");
+  try {
+    await api.register({
+      email: values.email,
+      phone_number: values.phone,
+      first_name: values.firstName,
+      last_name: values.lastName,
+      password: values.password,
+    });
+    toast.success("Регистрация успешна! Введите код из SMS.");
+    setPhoneForVerify(values.phone);
+    setView("verify");
+  } catch (err: any) {
+    console.error("❌ Ошибка регистрации:", err);
+    
+    let errorMessage = "Ошибка регистрации. Попробуйте позже.";
+    
+    if (axios.isAxiosError(err)) {
+      if (err.response) {
+        errorMessage = err.response.data?.detail || err.response.data?.message || "Ошибка регистрации";
+      } else if (err.request) {
+        errorMessage = "Ошибка сети. Проверьте подключение к интернету или настройки сервера.";
+        
+        if (err.message.includes('Network Error')) {
+          errorMessage = "Ошибка соединения с сервером. Проверьте, запущен ли бэкенд.";
+        }
+      } else {
+        errorMessage = err.message || "Неизвестная ошибка при настройке запроса";
+      }
     }
+    
+    toast.error(errorMessage);
+  } finally {
     setSubmitting(false);
-  };
+  }
+};
 
   const handleVerify = async (values: any, { setSubmitting }: any) => {
     try {
@@ -155,55 +177,58 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onClose }) => {
     </Formik>
   );
 
-  const renderVerify = () => (
-    <Formik 
-      initialValues={{ code: "" }} 
-      onSubmit={handleVerify}
-      validate={(values) => {
-        const errors: any = {};
-        if (!values.code) {
-          errors.code = "Обязательное поле";
-        } else if (values.code.length < 6) {
-          errors.code = "Код должен содержать 6 цифр";
-        }
-        return errors;
-      }}
-    >
-      {({ isSubmitting, values, errors, touched }) => (
-        <Form className={styles.form}>
-          <h2>Код из SMS</h2>
-          <p className={styles.subtitle}>
-            Мы отправили код на номер <strong>{phoneForVerify}</strong>
-          </p>
-          
-          <div className={styles.fieldGroup}>
-            <label htmlFor="code">Код</label>
-            <Field 
-              id="code" 
-              name="code" 
-              placeholder="123456" 
-              maxLength={6}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                const value = e.target.value.replace(/\D/g, '');
-                e.target.value = value;
-              }}
-            />
-
-            <ErrorMessage name="code" component="div" className={styles.error} />
-          </div>
-          
-          <Button 
-            type="submit" 
-            disabled={isSubmitting || values.code.length < 6 || !!errors.code}
-            variant="default" 
-            size="lg"
-          >
-            {isSubmitting ? "Проверка..." : "Подтвердить"}
-          </Button>
-        </Form>
-      )}
-    </Formik>
-  );
+const renderVerify = () => (
+  <Formik 
+    initialValues={{ code: "" }} 
+    onSubmit={handleVerify}
+    validate={(values) => {
+      const errors: any = {};
+      if (!values.code) {
+        errors.code = "Обязательное поле";
+      } else if (values.code.length < 6) {
+        errors.code = "Код должен содержать 6 цифр";
+      } else if (!/^\d+$/.test(values.code)) {
+        errors.code = "Код должен содержать только цифры";
+      }
+      return errors;
+    }}
+  >
+    {({ isSubmitting, values, errors, touched, setFieldValue }) => (
+      <Form className={styles.form}>
+        <h2>Код из SMS</h2>
+        <p className={styles.subtitle}>
+          Мы отправили код на номер <strong>{phoneForVerify}</strong>
+        </p>
+        
+        <div className={styles.fieldGroup}>
+          <label htmlFor="code">Код</label>
+          <Field 
+            id="code" 
+            name="code" 
+            placeholder="123456" 
+            maxLength={6}
+            value={values.code}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+              // Используем setFieldValue вместо прямого изменения DOM
+              const value = e.target.value.replace(/\D/g, '');
+              setFieldValue('code', value);
+            }}
+          />
+          <ErrorMessage name="code" component="div" className={styles.error} />
+        </div>
+        
+        <Button 
+          type="submit" 
+          disabled={isSubmitting || values.code.length < 6 || !!errors.code}
+          variant="default" 
+          size="lg"
+        >
+          {isSubmitting ? "Проверка..." : "Подтвердить"}
+        </Button>
+      </Form>
+    )}
+  </Formik>
+);
 
   return (
     <div className={styles.authForm}>
