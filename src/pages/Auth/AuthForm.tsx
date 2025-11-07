@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from "react";
 import { Formik, Form, Field, ErrorMessage } from "formik";
 import styles from "./AuthForm.module.scss";
@@ -5,6 +6,8 @@ import { Button } from "../../ui/button";
 import { toast } from "sonner";
 import * as api from "../../utils/api";
 import { setCookie } from "../../utils/cookies";
+import { zUserSignIn, zUserSignUp } from "../../utils/zod";
+import { toFormikValidationSchema } from 'zod-formik-adapter';
 
 type View = "login" | "register" | "verify";
 
@@ -39,7 +42,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onClose }) => {
         phone_number: values.phone,
         first_name: values.firstName,
         last_name: values.lastName,
-        password_hash: values.password,
+        password: values.password,
       });
       toast.success("Регистрация успешна! Введите код из SMS.");
       setPhoneForVerify(values.phone);
@@ -67,21 +70,30 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onClose }) => {
   const renderLogin = () => (
     <Formik
       initialValues={{ email: "", password: "" }}
-      // TODO: Добавить yup/zod-валидацию
+      validationSchema={toFormikValidationSchema(zUserSignIn)}
       onSubmit={handleLogin}
     >
-      {({ isSubmitting }) => (
+      {({ isSubmitting, isValid, dirty, errors, touched }) => (
         <Form className={styles.form}>
           <h2>Вход в FinFlow</h2>
+          
           <div className={styles.fieldGroup}>
             <label htmlFor="email">Email</label>
             <Field id="email" name="email" placeholder="user@example.com" />
+            <ErrorMessage name="email" component="div" className={styles.error} />
           </div>
+          
           <div className={styles.fieldGroup}>
             <label htmlFor="password">Пароль</label>
             <Field id="password" name="password" type="password" />
+            <ErrorMessage name="password" component="div" className={styles.error} />
           </div>
-          <Button type="submit" disabled={isSubmitting} variant="default" size="lg">
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || !isValid || !dirty}
+            variant="default" 
+            size="lg"
+          >
             {isSubmitting ? "Вход..." : "Войти"}
           </Button>
         </Form>
@@ -92,34 +104,50 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onClose }) => {
   const renderRegister = () => (
     <Formik
       initialValues={{ firstName: "", lastName: "", email: "", phone: "", password: "" }}
+      validationSchema={toFormikValidationSchema(zUserSignUp)}
       onSubmit={handleRegister}
     >
-      {({ isSubmitting }) => (
+      {({ isSubmitting, isValid, dirty, errors, touched }) => (
         <Form className={styles.form}>
           <h2>Регистрация</h2>
+          
           <div className={styles.grid}>
             <div className={styles.fieldGroup}>
               <label htmlFor="firstName">Имя</label>
               <Field id="firstName" name="firstName" />
+              <ErrorMessage name="firstName" component="div" className={styles.error} />
             </div>
             <div className={styles.fieldGroup}>
               <label htmlFor="lastName">Фамилия</label>
               <Field id="lastName" name="lastName" />
+              <ErrorMessage name="lastName" component="div" className={styles.error} />
             </div>
           </div>
+          
           <div className={styles.fieldGroup}>
             <label htmlFor="email">Email</label>
             <Field id="email" name="email" type="email" />
+            <ErrorMessage name="email" component="div" className={styles.error} />
           </div>
+          
           <div className={styles.fieldGroup}>
             <label htmlFor="phone">Телефон</label>
             <Field id="phone" name="phone" placeholder="+79001234567" />
+            <ErrorMessage name="phone" component="div" className={styles.error} />
           </div>
+          
           <div className={styles.fieldGroup}>
             <label htmlFor="password">Пароль</label>
             <Field id="password" name="password" type="password" />
+            <ErrorMessage name="password" component="div" className={styles.error} />
           </div>
-          <Button type="submit" disabled={isSubmitting} variant="default" size="lg">
+          
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || !isValid || !dirty}
+            variant="default" 
+            size="lg"
+          >
             {isSubmitting ? "Регистрация..." : "Зарегистрироваться"}
           </Button>
         </Form>
@@ -128,18 +156,48 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onClose }) => {
   );
 
   const renderVerify = () => (
-     <Formik initialValues={{ code: "" }} onSubmit={handleVerify}>
-      {({ isSubmitting }) => (
+    <Formik 
+      initialValues={{ code: "" }} 
+      onSubmit={handleVerify}
+      validate={(values) => {
+        const errors: any = {};
+        if (!values.code) {
+          errors.code = "Обязательное поле";
+        } else if (values.code.length < 6) {
+          errors.code = "Код должен содержать 6 цифр";
+        }
+        return errors;
+      }}
+    >
+      {({ isSubmitting, values, errors, touched }) => (
         <Form className={styles.form}>
           <h2>Код из SMS</h2>
           <p className={styles.subtitle}>
             Мы отправили код на номер <strong>{phoneForVerify}</strong>
           </p>
+          
           <div className={styles.fieldGroup}>
             <label htmlFor="code">Код</label>
-            <Field id="code" name="code" placeholder="123456" />
+            <Field 
+              id="code" 
+              name="code" 
+              placeholder="123456" 
+              maxLength={6}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                const value = e.target.value.replace(/\D/g, '');
+                e.target.value = value;
+              }}
+            />
+
+            <ErrorMessage name="code" component="div" className={styles.error} />
           </div>
-          <Button type="submit" disabled={isSubmitting} variant="default" size="lg">
+          
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || values.code.length < 6 || !!errors.code}
+            variant="default" 
+            size="lg"
+          >
             {isSubmitting ? "Проверка..." : "Подтвердить"}
           </Button>
         </Form>

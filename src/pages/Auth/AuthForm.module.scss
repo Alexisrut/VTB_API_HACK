@@ -116,3 +116,10 @@
     padding: 0 1rem;
   }
 }
+
+.error {
+  color: var(--danger);
+  font-size: 0.8rem;
+  margin-top: 4px;
+  text-align: left;
+}

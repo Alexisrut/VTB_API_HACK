@@ -7,7 +7,7 @@ export interface RegisterData {
   phone_number: string;
   first_name: string;
   last_name: string;
-  password_hash: string;
+  password: string;
 }
 
 export interface TokenResponse {
@@ -75,6 +75,7 @@ api.interceptors.response.use(
 
 
 export const register = (data: RegisterData) => {
+  console.log("api: send register request: ", data)
   return api.post<UserResponse>("/auth/register", data);
 };
 
@@ -83,8 +84,8 @@ export const verifySms = (phone_number: string, code: string) => {
   return api.post("/auth/verify-sms", { phone_number, code });
 };
 
-export const login = (email: string, password_hash: string) => {
-  return api.post<TokenResponse>("/auth/login", { email, password_hash });
+export const login = (email: string, password: string) => {
+  return api.post<TokenResponse>("/auth/login", { email, password });
 };
 
 export const getMe = () => {
