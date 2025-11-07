@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     """Регистрация пользователя"""
-    
     # Проверка существования пользователя
     result = await db.execute(
         select(User).where((User.email == user_data.email) | (User.phone_number == user_data.phone_number))
@@ -50,10 +49,11 @@ async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
     # Отправка SMS кода
     sms_sent = await sms_service.send_registration_code(user_data.phone_number, db)
     if not sms_sent:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Ошибка отправки SMS"
-        )
+        pass
+        # raise HTTPException(
+        #     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        #     detail="Ошибка отправки SMS"
+        # )
     
     return UserResponse.from_orm(user)
 
@@ -92,13 +92,24 @@ async def login(credentials: TokenRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == credentials.email))
     user = result.scalars().first()
     
-    if not user or not verify_password(credentials.password, user.hashed_password):
+    if not user:
+        logger.warning(f"Login attempt with non-existent email: {credentials.email}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный email или пароль"
+        )
+    
+    logger.info(f"User found: {user.id}, is_active: {user.is_active}, hashed_password length: {len(user.hashed_password) if user.hashed_password else 0}")
+    
+    if not verify_password(credentials.password, user.hashed_password):
+        logger.warning(f"Invalid password for user: {user.id}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Неверный email или пароль"
         )
     
     if not user.is_active:
+        logger.warning(f"Inactive user attempted login: {user.id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Пользователь неактивен"

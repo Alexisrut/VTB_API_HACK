@@ -1,0 +1,15 @@
+{
+    "sqltools.connections": [
+        {
+            "ssh": "Disabled",
+            "previewLimit": 50,
+            "server": "localhost",
+            "port": 5432,
+            "driver": "PostgreSQL",
+            "name": "vtb_api_hack",
+            "group": "1",
+            "username": "fastapi_user",
+            "database": "fastapi_db"
+        }
+    ]
+}
