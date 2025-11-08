@@ -13,6 +13,7 @@ from app.services.bank_oauth_service import oauth_bank_service
 from app.security.password import hash_password, verify_password
 from app.security.jwt_handler import create_access_token, create_refresh_token, decode_token
 from app.config import get_settings
+from app.services.universal_bank_service import universal_bank_service
 from datetime import datetime, timedelta
 import logging
 
@@ -146,8 +147,8 @@ async def refresh(request: RefreshTokenRequest, db: AsyncSession = Depends(get_d
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
 
-@router.get("/oauth/authorize")
-async def oauth_authorize(db: AsyncSession = Depends(get_db)):
+@router.get("/oauth/authorize/{bank_id}")
+async def oauth_authorize(db: AsyncSession = Depends(get_db), bank_code: str):
     """
     Инициирование OAuth flow с полным циклом получения банковских данных
     
@@ -156,6 +157,8 @@ async def oauth_authorize(db: AsyncSession = Depends(get_db)):
     2. Запросить согласие (авто-одобрение)
     3. Получить данные счетов
     """
+    await bank = universal_bank_service._get_bank_config(bank_code)
+    
     try:
         logger.info("Starting OAuth authorize flow...")
         
@@ -197,7 +200,7 @@ async def oauth_authorize(db: AsyncSession = Depends(get_db)):
         
         # Перенаправляем на банк для авторизации пользователя
         # (или если банк уже авторизовал, перенаправляем на callback)
-        auth_url = oauth_service.generate_authorization_url(session_id)
+        auth_url = oauth_service.generate_authorization_url(session_id, bank_data)
         
         logger.info(f"Redirecting to bank authorization URL")
         return RedirectResponse(url=auth_url)

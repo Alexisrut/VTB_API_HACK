@@ -31,13 +31,13 @@ class OAuth2Service:
             "code_verifier": code_verifier
         }
     
-    def generate_authorization_url(self, state: str) -> str:
+    def generate_authorization_url(self, state: str, bank) -> str:
         """Генерация URL для перенаправления на банковский API"""
         
         params = {
             "response_type": "code",
-            "client_id": settings.BANK_CLIENT_ID,
-            "redirect_uri": settings.BANK_REDIRECT_URI,
+            "client_id": bank.client_id,
+            "redirect_uri": bank.redirect_url,
             "scope": "openid profile accounts",
             "state": state,
             "nonce": secrets.token_urlsafe(16),
