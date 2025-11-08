@@ -38,15 +38,31 @@ class SMSService:
     
     async def send_registration_code(self, phone_number: str, db: AsyncSession) -> bool:
         """Отправка кода регистрации"""
-        code = await self.generate_sms_code()
-        
-        # Сохранить в БД
-        sms_verification = SMSVerification(
-            phone_number=phone_number,
-            code=code,
-            expires_at=datetime.utcnow() + timedelta(minutes=10)
+        # Проверяем, существует ли уже запись для этого номера
+        result = await db.execute(
+            select(SMSVerification).where(SMSVerification.phone_number == phone_number)
         )
-        db.add(sms_verification)
+        existing_verification = result.scalars().first()
+        
+        code = await self.generate_sms_code()
+        current_time = datetime.utcnow()
+        
+        if existing_verification:
+            # Если запись существует, обновляем ее
+            existing_verification.code = code
+            existing_verification.attempts = 0
+            existing_verification.expires_at = current_time + timedelta(minutes=10)
+            existing_verification.verified = False
+            db.add(existing_verification)
+        else:
+            # Если записи нет, создаем новую
+            sms_verification = SMSVerification(
+                phone_number=phone_number,
+                code=code,
+                expires_at=current_time + timedelta(minutes=10)
+            )
+            db.add(sms_verification)
+        
         await db.commit()
         
         message = f"Ваш код подтверждения: {code}. Действителен 10 минут."
