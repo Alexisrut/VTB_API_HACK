@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.auth_router import router as auth_router
 from app.users_router import router as users_router
+from app.bank_api_router import router as bank_api_router
 from app.database import engine
 from app.models import Base
 import uvicorn
@@ -38,6 +39,7 @@ app.add_middleware(
 # Routers
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(bank_api_router)
 
 @app.get("/health")
 async def health_check():

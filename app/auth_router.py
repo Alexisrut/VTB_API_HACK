@@ -1,5 +1,5 @@
 import secrets
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -9,7 +9,7 @@ from app.models import User
 from app.database import get_db
 from app.services.sms_service import sms_service
 from app.services.oauth_service import oauth_service
-from app.services.bank_oauth_service import oauth_bank_service
+from app.services.bank_oauth_service import OAuth2BankService
 from app.security.password import hash_password, verify_password
 from app.security.jwt_handler import create_access_token, create_refresh_token, decode_token
 from app.config import get_settings
@@ -158,8 +158,8 @@ async def refresh(request: RefreshTokenRequest, db: AsyncSession = Depends(get_d
         expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     )
 
-@router.get("/oauth/authorize/{bank_id}")
-async def oauth_authorize(db: AsyncSession = Depends(get_db), bank_code: str):
+@router.get("/oauth/authorize/{bank_code}")
+async def oauth_authorize(bank_code: str, db: AsyncSession = Depends(get_db)):
     """
     Инициирование OAuth flow с полным циклом получения банковских данных
     
@@ -168,10 +168,12 @@ async def oauth_authorize(db: AsyncSession = Depends(get_db), bank_code: str):
     2. Запросить согласие (авто-одобрение)
     3. Получить данные счетов
     """
-    await bank = universal_bank_service._get_bank_config(bank_code)
     
     try:
-        logger.info("Starting OAuth authorize flow...")
+        logger.info(f"Starting OAuth authorize flow for bank: {bank_code}")
+        
+        # Создаем экземпляр сервиса для конкретного банка
+        oauth_bank_service = OAuth2BankService(bank_code=bank_code)
         
         # Генерируем временный ID для отслеживания сессии
         session_id = secrets.token_urlsafe(16)
@@ -191,7 +193,7 @@ async def oauth_authorize(db: AsyncSession = Depends(get_db), bank_code: str):
             )
         
         # Извлекаем данные из успешного ответа
-        bills = bank_data.get("bills")
+        bills = bank_data.get("bills", [])
         consent_id = bank_data.get("consent_id")
         auto_approved = bank_data.get("auto_approved", True)
         
@@ -320,13 +322,19 @@ async def oauth_callback(code: str, state: str, db: AsyncSession = Depends(get_d
         )
 
 @router.get("/oauth/bank-bills")
-async def get_oauth_bank_accounts(db: AsyncSession = Depends(get_db)):
+async def get_oauth_bank_accounts(
+    bank_code: str = Query(..., description="Код банка: vbank, abank, sbank"),
+    db: AsyncSession = Depends(get_db)
+):
     """
     Эндпоинт для получения банковских счетов пользователя через OAuth
     Использует полный цикл получения данных от банка
     """
     try:
-        logger.info("Getting bank accounts through full OAuth cycle...")
+        logger.info(f"Getting bank accounts through full OAuth cycle for bank: {bank_code}")
+        
+        # Создаем экземпляр сервиса для конкретного банка
+        oauth_bank_service = OAuth2BankService(bank_code=bank_code)
         
         # Можно передать реальный user_id вместо session_id
         session_id = secrets.token_urlsafe(16)
@@ -341,7 +349,7 @@ async def get_oauth_bank_accounts(db: AsyncSession = Depends(get_db)):
         
         return {
             "success": True,
-            "accounts": bank_data.get("accounts", []),
+            "accounts": bank_data.get("bills", []),
             "consent_id": bank_data.get("consent_id"),
             "auto_approved": bank_data.get("auto_approved", True)
         }

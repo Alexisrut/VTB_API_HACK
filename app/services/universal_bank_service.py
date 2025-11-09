@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.config_multibank import get_settings, BankConfig
+from app.config import get_settings, BankConfig
 from app.models import OAuthSession, User
 
 settings = get_settings()

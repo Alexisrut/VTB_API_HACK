@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     SMS_FROM_NAME: str = "YourApp"
     
     # Frontend
-    #FRONTEND_URL: str
+    FRONTEND_URL: str = "http://localhost:5173"
     
     # ==================== КОНФИГУРАЦИЯ ДЛЯ ТРЁХ БАНКОВ ====================
     
