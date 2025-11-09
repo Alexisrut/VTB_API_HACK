@@ -1,0 +1,26 @@
+@use "../../styles/vars" as *;
+
+.container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem;
+}
+
+.content {
+  text-align: center;
+  
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    color: $foreground;
+    margin-bottom: 1rem;
+  }
+  
+  p {
+    font-size: 1rem;
+    color: $muted-foreground;
+  }
+}
+

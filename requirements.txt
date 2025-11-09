@@ -1,6 +1,7 @@
 fastapi==0.104.1
 uvicorn==0.24.0
 sqlalchemy==2.0.23
+greenlet==3.0.1
 alembic==1.12.1
 psycopg2-binary==2.9.9
 python-dotenv==1.0.0
@@ -16,6 +17,11 @@ redis==5.0.1
 requests==2.31.0
 email-validator==2.1.0
 bcrypt==4.0.1
-passlib==1.7.4
 asyncpg==0.30.0
 aiohttp==3.13.2
+numpy==1.24.3
+# Testing dependencies
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+aiosqlite==0.19.0

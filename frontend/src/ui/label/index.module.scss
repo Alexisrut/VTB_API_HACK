@@ -1,0 +1,16 @@
+@use "../../styles/vars.scss" as *;
+
+.label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: $foreground;
+  display: block;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+

@@ -35,28 +35,93 @@ async def get_user_accounts(
     
     **Возвращает:**
     - Список счетов с балансами
+    
+    **Примечание:**
+    - Использует bank_user_id из профиля пользователя, если он установлен
+    - Если bank_user_id не установлен, вернет ошибку с инструкцией
     """
     try:
         logger.info(f"User {user_id} requesting accounts from {bank_code}")
         
         result = await universal_bank_service.get_all_accounts_full_cycle(
             bank_code=bank_code,
-            user_id=str(user_id)
+            user_id=str(user_id),  # Fallback если нет в БД
+            db=db,
+            internal_user_id=user_id
         )
         
         if not result.get("success"):
+            error_msg = result.get("error", "Failed to fetch accounts")
+            # Проверяем, не связана ли ошибка с отсутствием bank_user_id
+            if "No bank_user_id" in error_msg or "bank_user_id" in error_msg.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{error_msg}. Please set bank_user_id in your profile first."
+                )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=result.get("error", "Failed to fetch accounts")
+                detail=error_msg
             )
+        
+        # Фильтруем и валидируем счета перед сериализацией
+        valid_accounts = []
+        accounts_list = result.get("accounts", [])
+        
+        for acc in accounts_list:
+            # Пропускаем счета без account_id или с None в качестве ключей
+            if not isinstance(acc, dict):
+                logger.warning(f"[{bank_code}] Skipping invalid account format: {type(acc)}")
+                continue
+            
+            # Проверяем наличие account_id из разных возможных мест
+            account_id = (
+                acc.get("account_id") or 
+                acc.get("id") or 
+                acc.get("accountId") or
+                (acc.get("account", {}) if isinstance(acc.get("account"), dict) else {}).get("identification") or
+                (acc.get("account", {}) if isinstance(acc.get("account"), dict) else {}).get("account_id")
+            )
+            
+            if not account_id:
+                logger.warning(f"[{bank_code}] Skipping account without account_id: {acc}")
+                continue
+            
+            # Удаляем None ключи и None значения из словаря (рекурсивно)
+            cleaned_acc = {}
+            for k, v in acc.items():
+                if k is not None:  # Пропускаем None ключи
+                    # Рекурсивно очищаем вложенные словари
+                    if isinstance(v, dict):
+                        cleaned_v = {nk: nv for nk, nv in v.items() if nk is not None and nv is not None}
+                        if cleaned_v:  # Только если есть валидные данные
+                            cleaned_acc[k] = cleaned_v
+                    elif isinstance(v, list):
+                        # Очищаем список от None значений
+                        cleaned_v = [item for item in v if item is not None]
+                        if cleaned_v:
+                            cleaned_acc[k] = cleaned_v
+                    elif v is not None:  # Пропускаем None значения
+                        cleaned_acc[k] = v
+            
+            # Убеждаемся, что account_id есть в cleaned_acc и это строка
+            if "account_id" not in cleaned_acc or not cleaned_acc.get("account_id"):
+                cleaned_acc["account_id"] = str(account_id)
+            
+            try:
+                valid_accounts.append(BankAccountSchema(**cleaned_acc))
+            except Exception as e:
+                logger.warning(f"[{bank_code}] Skipping account due to validation error: {e}, account: {cleaned_acc}")
+                continue
         
         return GetBankAccountsResponse(
             success=True,
-            accounts=[BankAccountSchema(**acc) for acc in result.get("accounts", [])],
+            accounts=valid_accounts,
             consent_id=result.get("consent_id"),
             auto_approved=result.get("auto_approved")
         )
     
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -84,13 +149,18 @@ async def get_accounts_from_all_banks(
     
     **Возвращает:**
     - Счета из каждого банка с флагами успешности
+    
+    **Примечание:**
+    - Использует bank_user_id из профиля пользователя для каждого банка
     """
     try:
         logger.info(f"User {user_id} requesting accounts from multiple banks")
         
         results = await universal_bank_service.get_accounts_from_all_banks(
-            user_id=str(user_id),
-            bank_codes=banks
+            user_id=str(user_id),  # Fallback если нет в БД
+            bank_codes=banks,
+            db=db,
+            internal_user_id=user_id
         )
         
         # Форматируем ответ
@@ -111,9 +181,10 @@ async def get_accounts_from_all_banks(
                     "count": len(accounts)
                 }
             else:
+                error_msg = bank_result.get("error", "Unknown error")
                 response["banks"][bank_code] = {
                     "success": False,
-                    "error": bank_result.get("error"),
+                    "error": error_msg,
                     "count": 0
                 }
         
@@ -242,7 +313,7 @@ async def get_account_balances(
 async def get_account_transactions(
     account_id: str,
     bank_code: str = Query(..., description="Код банка"),
-    consent_id: str = Query(..., description="ID согласия"),
+    consent_id: Optional[str] = Query(None, description="ID согласия (если не указано, будет получен из БД)"),
     from_date: Optional[str] = Query(None, description="Дата начала YYYY-MM-DD"),
     to_date: Optional[str] = Query(None, description="Дата конца YYYY-MM-DD"),
     user_id: int = Depends(get_current_user),
@@ -254,11 +325,33 @@ async def get_account_transactions(
     **Параметры:**
     - **account_id**: ID счета
     - **bank_code**: Код банка
-    - **consent_id**: ID согласия
+    - **consent_id**: ID согласия (опционально, если не указано - будет получен из БД)
     - **from_date**: Дата начала (опционально)
     - **to_date**: Дата конца (опционально)
     """
     try:
+        # Если consent_id не указан, получаем его из БД
+        if not consent_id:
+            from app.models import BankConsent
+            from sqlalchemy import select, and_
+            stmt = select(BankConsent).where(
+                and_(
+                    BankConsent.user_id == user_id,
+                    BankConsent.bank_code == bank_code,
+                    BankConsent.status == "approved"
+                )
+            ).order_by(BankConsent.created_at.desc())
+            result = await db.execute(stmt)
+            consent = result.scalar_one_or_none()
+            
+            if not consent:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No active consent found for {bank_code}. Please sync accounts first."
+                )
+            consent_id = consent.consent_id
+            logger.info(f"Using consent_id from DB: {consent_id} for bank {bank_code}")
+        
         access_token = await universal_bank_service.get_bank_access_token(bank_code)
         if not access_token:
             raise HTTPException(

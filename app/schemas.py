@@ -38,6 +38,9 @@ class UserResponse(UserBase):
     
     class Config:
         from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
 class UserInDB(UserResponse):
     hashed_password: str

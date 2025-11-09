@@ -1,0 +1,248 @@
+@use "../../styles/vars" as *;
+
+.landing {
+  min-height: 100vh;
+  background: linear-gradient(180deg, $background 0%, rgba($primary, 0.05) 100%);
+}
+
+.hero {
+  padding: 4rem 2rem;
+  text-align: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.heroContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.brandIcon {
+  width: 2rem;
+  height: 2rem;
+  color: $primary;
+}
+
+.brandName {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: $foreground;
+}
+
+.heroTitle {
+  font-size: 3rem;
+  font-weight: 800;
+  color: $foreground;
+  line-height: 1.2;
+  max-width: 800px;
+  margin: 0;
+
+  @media (max-width: 768px) {
+    font-size: 2rem;
+  }
+}
+
+.heroDescription {
+  font-size: 1.25rem;
+  color: $muted-foreground;
+  max-width: 600px;
+  line-height: 1.6;
+  margin: 0;
+
+  @media (max-width: 768px) {
+    font-size: 1rem;
+  }
+}
+
+.heroActions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.ctaButton {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ctaButtonLarge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.125rem;
+  padding: 1rem 2rem;
+}
+
+.features,
+.benefits,
+.cta {
+  padding: 4rem 2rem;
+}
+
+.sectionContent {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.sectionTitle {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: $foreground;
+  text-align: center;
+  margin-bottom: 3rem;
+
+  @media (max-width: 768px) {
+    font-size: 2rem;
+  }
+}
+
+.featuresGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+}
+
+.featureCard {
+  height: 100%;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba($primary, 0.15);
+  }
+}
+
+.featureIcon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: $radius-md;
+  background: linear-gradient(135deg, rgba($primary, 0.1), rgba($primary, 0.2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $primary;
+  margin-bottom: 1rem;
+}
+
+.benefitsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: center;
+
+  @media (max-width: 968px) {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
+.benefitsText {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.benefitsDescription {
+  font-size: 1.125rem;
+  color: $muted-foreground;
+  line-height: 1.6;
+}
+
+.benefitsList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.benefitItem {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1rem;
+  color: $foreground;
+
+  span {
+    flex: 1;
+  }
+}
+
+.checkIcon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+.benefitsVisual {
+  display: flex;
+  justify-content: center;
+}
+
+.visualCard {
+  width: 100%;
+  max-width: 500px;
+}
+
+.visualContent {
+  padding: 3rem !important;
+}
+
+.chartPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  color: $muted-foreground;
+  text-align: center;
+
+  svg {
+    width: 4rem;
+    height: 4rem;
+    opacity: 0.5;
+  }
+}
+
+.ctaCard {
+  background: linear-gradient(135deg, rgba($primary, 0.1), rgba($primary, 0.05));
+  border: 2px solid rgba($primary, 0.2);
+}
+
+.ctaContent {
+  padding: 3rem !important;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.ctaTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  color: $foreground;
+  margin: 0;
+}
+
+.ctaDescription {
+  font-size: 1.125rem;
+  color: $muted-foreground;
+  max-width: 600px;
+  margin: 0;
+}
+

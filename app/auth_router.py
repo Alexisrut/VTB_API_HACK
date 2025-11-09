@@ -23,40 +23,44 @@ logger = logging.getLogger(__name__)
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserRegister, db: AsyncSession = Depends(get_db)):
-    """Регистрация пользователя"""
-    # Проверка существования пользователя
-    result = await db.execute(
-        select(User).where((User.email == user_data.email) | (User.phone_number == user_data.phone_number))
-    )
-    if result.scalars().first():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email или номер телефона уже зарегистрирован"
+    """Регистрация пользователя (без SMS верификации - пользователь активируется сразу)"""
+    try:
+        # Проверка существования пользователя
+        result = await db.execute(
+            select(User).where((User.email == user_data.email) | (User.phone_number == user_data.phone_number))
         )
-    
-    # Создание пользователя
-    user = User(
-        email=user_data.email,
-        phone_number=user_data.phone_number,
-        first_name=user_data.first_name,
-        last_name=user_data.last_name,
-        hashed_password=hash_password(user_data.password),
-        is_active=False
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    # Отправка SMS кода
-    sms_sent = await sms_service.send_registration_code(user_data.phone_number, db)
-    if not sms_sent:
-        pass
-        # raise HTTPException(
-        #     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        #     detail="Ошибка отправки SMS"
-        # )
-    
-    return UserResponse.from_orm(user)
+        if result.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email или номер телефона уже зарегистрирован"
+            )
+        
+        # Создание пользователя с автоматической активацией (без SMS верификации)
+        user = User(
+            email=user_data.email,
+            phone_number=user_data.phone_number,
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            hashed_password=hash_password(user_data.password),
+            is_active=True,  # Автоматически активируем пользователя
+            is_phone_verified=True,  # Пропускаем SMS верификацию
+            is_email_verified=False  # Email верификация не требуется на данном этапе
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        
+        logger.info(f"User registered successfully: {user.id}, email: {user.email}")
+        
+        return UserResponse.from_orm(user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during registration: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка регистрации: {str(e)}"
+        )
 
 @router.post("/verify-sms")
 async def verify_sms(data: SMSVerificationConfirm, db: AsyncSession = Depends(get_db)):
@@ -161,65 +165,43 @@ async def refresh(request: RefreshTokenRequest, db: AsyncSession = Depends(get_d
 @router.get("/oauth/authorize/{bank_code}")
 async def oauth_authorize(bank_code: str, db: AsyncSession = Depends(get_db)):
     """
-    Инициирование OAuth flow с полным циклом получения банковских данных
+    Инициирование OAuth flow для входа через банк
     
-    НОВЫЙ АЛГОРИТМ (vbank.open.bankingapi.ru):
-    1. Получить токен банка
-    2. Запросить согласие (авто-одобрение)
-    3. Получить данные счетов
+    Процесс:
+    1. Генерируем OAuth state для безопасности
+    2. Перенаправляем пользователя на страницу авторизации банка
+    3. После авторизации банк перенаправит на /auth/oauth/callback
     """
     
     try:
         logger.info(f"Starting OAuth authorize flow for bank: {bank_code}")
         
-        # Создаем экземпляр сервиса для конкретного банка
-        oauth_bank_service = OAuth2BankService(bank_code=bank_code)
-        
-        # Генерируем временный ID для отслеживания сессии
-        session_id = secrets.token_urlsafe(16)
-        logger.info(f"Session ID: {session_id}")
-        
-        # ============ НОВАЯ ЛОГИКА: Полный цикл работы с банком ============
-        
-        # Выполняем полный цикл получения банковских счетов
-        logger.info("Executing full bank account retrieval cycle...")
-        bank_data = await oauth_bank_service.get_bank_accounts_full_cycle(session_id)
-        
-        if not bank_data.get("success"):
-            logger.error(f"Bank cycle failed: {bank_data.get('error')}")
+        # Валидация кода банка
+        try:
+            bank_config = settings.get_bank_config(bank_code)
+        except ValueError as e:
+            logger.error(f"Invalid bank code: {bank_code}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Failed to retrieve bank data: {bank_data.get('error')}"
+                detail=f"Invalid bank code: {bank_code}"
             )
         
-        # Извлекаем данные из успешного ответа
-        bills = bank_data.get("bills", [])
-        consent_id = bank_data.get("consent_id")
-        auto_approved = bank_data.get("auto_approved", True)
+        # Генерируем OAuth state для безопасности
+        oauth_state_data = await oauth_service.generate_oauth_state(f"bank_{bank_code}", db)
+        state = oauth_state_data["state"]
         
-        logger.info(f"Successfully retrieved {len(bills)} accounts")
-        logger.info(f"Consent ID: {consent_id}, Auto-approved: {auto_approved}")
+        logger.info(f"Generated OAuth state: {state} for bank: {bank_code}")
         
-        # Сохраняем в сессию для дальнейшего использования
-        # Это можно использовать при создании пользователя
-        session_data = {
-            "bank_accounts": bills,
-            "consent_id": consent_id,
-            "auto_approved": auto_approved,
-            "retrieved_at": datetime.utcnow().isoformat()
-        }
+        # Генерируем URL для перенаправления на банк
+        auth_url = oauth_service.generate_authorization_url(state, bank_config)
         
-        logger.info(f"Session data prepared: {session_data}")
-        
-        # Перенаправляем на банк для авторизации пользователя
-        # (или если банк уже авторизовал, перенаправляем на callback)
-        auth_url = oauth_service.generate_authorization_url(session_id, bank_data)
-        
-        logger.info(f"Redirecting to bank authorization URL")
+        logger.info(f"Redirecting to bank authorization URL: {auth_url}")
         return RedirectResponse(url=auth_url)
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error in oauth_authorize: {str(e)}")
+        logger.error(f"Error in oauth_authorize: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"OAuth authorization failed: {str(e)}"

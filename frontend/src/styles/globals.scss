@@ -1,0 +1,62 @@
+/* Файл: src/styles/globals.scss */
+@use "vars" as *;
+@use "mixins" as *;
+
+/* Базовые стили */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-color: $border;
+}
+
+body {
+  background-color: $background;
+  color: $foreground;
+  overflow-x: hidden;
+  background-image: $gradient-glow;
+  background-attachment: fixed;
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Глобальные утилитарные классы */
+.glass-card {
+  @include glass-card(false);
+}
+
+.glass-card-hover {
+  @include glass-card(true);
+}
+
+.gradient-primary {
+  background: $gradient-primary;
+}
+
+.gradient-accent {
+  background: $gradient-accent;
+}
+
+.text-glow {
+  @include text-glow($primary);
+}
+
+/* Стили для скроллбара (по желанию) */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: 	#8c8c8c transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: #8c8c8c;
+    border-radius: 20px;
+  }
+}

@@ -1,0 +1,76 @@
+@use "../../styles/vars" as *;
+
+.tableWrapper {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  caption-side: bottom;
+  font-size: 0.875rem;
+}
+
+.tableHeader {
+
+  tr {
+    border-bottom: 1px solid $border;
+  }
+}
+
+.tableBody {
+  tr:last-child {
+    border-bottom: 0;
+  }
+}
+
+.tableFooter {
+  border-top: 1px solid $border;
+  background-color: rgba($muted, 0.5);
+  font-weight: 500;
+  tr:last-child {
+    border-bottom: 0;
+  }
+}
+
+.tableRow {
+  border-bottom: 1px solid $border;
+  transition: background-color 0.2s;
+
+  &[data-state="selected"] {
+    background-color: $muted;
+  }
+
+  &:hover {
+    background-color: rgba($muted, 0.5);
+  }
+}
+
+.tableHead {
+  height: 3rem; 
+  padding: 0 1rem; 
+  text-align: left;
+  vertical-align: middle;
+  font-weight: 500; 
+  color: $muted-foreground;
+
+  &:has([role="checkbox"]) {
+    padding-right: 0;
+  }
+}
+
+.tableCell {
+  padding: 1rem;
+  vertical-align: middle;
+
+  &:has([role="checkbox"]) {
+    padding-right: 0;
+  }
+}
+
+.tableCaption {
+  margin-top: 1rem; 
+  font-size: 0.875rem; 
+  color: $muted-foreground;
+}

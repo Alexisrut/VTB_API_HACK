@@ -31,20 +31,20 @@ class OAuth2Service:
             "code_verifier": code_verifier
         }
     
-    def generate_authorization_url(self, state: str, bank) -> str:
+    def generate_authorization_url(self, state: str, bank_config) -> str:
         """Генерация URL для перенаправления на банковский API"""
         
         params = {
             "response_type": "code",
-            "client_id": bank.client_id,
-            "redirect_uri": bank.redirect_url,
+            "client_id": bank_config.client_id,
+            "redirect_uri": bank_config.redirecting_url,
             "scope": "openid profile accounts",
             "state": state,
             "nonce": secrets.token_urlsafe(16),
             "code_challenge_method": "S256",
         }
         
-        return f"{settings.BANK_API_URL}/oauth/authorize?{urlencode(params)}"
+        return f"{bank_config.api_url}/oauth/authorize?{urlencode(params)}"
     
     async def exchange_code_for_token(self, code: str, code_verifier: str) -> dict:
         """Обмен кода на токен"""

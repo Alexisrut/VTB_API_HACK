@@ -61,6 +61,17 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 
+# Application runtime files
+app.log
+app.pid
+*.pid
+
+# Codebase dumps (Repomix, etc.)
+backend.xml
+backend.txt
+frontend.txt
+*_dump.txt
+
 # Flask stuff:
 instance/
 .webassets-cache
@@ -214,3 +225,21 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Docker
+docker-compose.override.yml
+
+# Frontend (Node.js / React)
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.env
+frontend/.env.local
+frontend/.env.production
+frontend/.DS_Store
+frontend/*.log
+
+# OS
+.DS_Store
+Thumbs.db

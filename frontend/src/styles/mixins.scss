@@ -1,0 +1,40 @@
+/* Файл: src/styles/mixins.scss */
+@use "vars" as *;
+@use "sass:color";
+
+/* Миксин для "стеклянной" карточки 
+  @include glass-card(true) для эффекта при наведении
+*/
+@mixin glass-card($hover-effect: false) {
+  backdrop-filter: $blur-xl ;
+  border: 1px solid $glass-border;
+  background: $glass-bg;
+  transition: all 0.3s ease;
+  box-shadow: $shadow-soft;
+
+  @if $hover-effect {
+    &:hover {
+      border-color: $popover;
+      box-shadow: $shadow-medium, $shadow-glow;
+      transform: translateY(-2px);
+    }
+  }
+}
+
+/* Миксин для свечения текста */
+@mixin text-glow($color: $primary) {
+  $as-hsl: color.to-space($color, hsl);
+  text-shadow: 0 0 20px hsla(color.channel($as-hsl, "hue"),
+      color.channel($as-hsl, "saturation"),
+      color.channel($as-hsl, "lightness"),
+      0.3);
+}
+
+/* Миксин для градиентного текста */
+@mixin gradient-text($gradient) {
+  background: $gradient;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+}

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.config import get_settings, BankConfig
-from app.models import OAuthSession, User
+from app.models import OAuthSession, User, BankUser
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -248,14 +248,80 @@ class UniversalBankAPIService:
                 async with session.get(url, params=params, headers=headers) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        logger.info(f"[{bank_code}] Successfully fetched {len(data.get('accounts', []))} accounts")
-                        return data
+                        
+                        # Обрабатываем разные форматы ответа
+                        accounts = []
+                        if isinstance(data, dict):
+                            # Стандартный формат: {"accounts": [...]}
+                            if "accounts" in data:
+                                accounts = data.get("accounts", [])
+                            # Альтернативный формат: {"data": {"account": [...]}}
+                            elif "data" in data and isinstance(data["data"], dict):
+                                if "account" in data["data"]:
+                                    accounts = data["data"]["account"] if isinstance(data["data"]["account"], list) else [data["data"]["account"]]
+                                elif "accounts" in data["data"]:
+                                    accounts = data["data"]["accounts"]
+                            # Если accounts на верхнем уровне
+                            elif "account" in data:
+                                accounts = data["account"] if isinstance(data["account"], list) else [data["account"]]
+                        elif isinstance(data, list):
+                            # Если ответ - это список счетов напрямую
+                            accounts = data
+                        
+                        # Фильтруем None значения и валидируем структуру
+                        cleaned_accounts = []
+                        for acc in accounts:
+                            if acc is None:
+                                continue
+                            if not isinstance(acc, dict):
+                                logger.warning(f"[{bank_code}] Skipping non-dict account: {type(acc)}")
+                                continue
+                            
+                            # Извлекаем account_id из разных возможных мест
+                            account_id = (
+                                acc.get("account_id") or 
+                                acc.get("id") or 
+                                acc.get("accountId") or
+                                (acc.get("account", {}) if isinstance(acc.get("account"), dict) else {}).get("identification") or
+                                (acc.get("account", {}) if isinstance(acc.get("account"), dict) else {}).get("account_id")
+                            )
+                            
+                            if not account_id:
+                                logger.warning(f"[{bank_code}] Skipping account without account_id: {acc}")
+                                continue
+                            
+                            # Удаляем None ключи и None значения из словаря
+                            cleaned_acc = {}
+                            for k, v in acc.items():
+                                if k is not None:  # Пропускаем None ключи
+                                    # Рекурсивно очищаем вложенные словари
+                                    if isinstance(v, dict):
+                                        cleaned_v = {nk: nv for nk, nv in v.items() if nk is not None and nv is not None}
+                                        if cleaned_v:  # Только если есть валидные данные
+                                            cleaned_acc[k] = cleaned_v
+                                    elif isinstance(v, list):
+                                        # Очищаем список от None значений
+                                        cleaned_v = [item for item in v if item is not None]
+                                        if cleaned_v:
+                                            cleaned_acc[k] = cleaned_v
+                                    elif v is not None:  # Пропускаем None значения
+                                        cleaned_acc[k] = v
+                            
+                            # Убеждаемся, что account_id есть в cleaned_acc
+                            if "account_id" not in cleaned_acc or not cleaned_acc.get("account_id"):
+                                cleaned_acc["account_id"] = str(account_id)
+                            
+                            if cleaned_acc:  # Только если есть валидные данные
+                                cleaned_accounts.append(cleaned_acc)
+                        
+                        logger.info(f"[{bank_code}] Successfully fetched {len(cleaned_accounts)} accounts (filtered from {len(accounts)})")
+                        return {"accounts": cleaned_accounts}
                     else:
                         error_text = await resp.text()
                         logger.error(f"[{bank_code}] Failed to fetch accounts: {resp.status} - {error_text}")
                         return None
         except Exception as e:
-            logger.error(f"[{bank_code}] Error fetching accounts: {e}")
+            logger.error(f"[{bank_code}] Error fetching accounts: {e}", exc_info=True)
             return None
     
     async def get_account_details(
@@ -505,22 +571,97 @@ class UniversalBankAPIService:
     
     # ==================== КОМПЛЕКСНЫЕ МЕТОДЫ ====================
     
+    async def get_bank_user_id(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        bank_code: str
+    ) -> Optional[str]:
+        """
+        Получить bank_user_id для пользователя и банка из базы данных
+        
+        Args:
+            db: Database session
+            user_id: Internal user ID
+            bank_code: Bank code (vbank, abank, sbank)
+        
+        Returns:
+            bank_user_id или None если не найден
+        """
+        try:
+            result = await db.execute(
+                select(BankUser).where(
+                    BankUser.user_id == user_id,
+                    BankUser.bank_code == bank_code
+                )
+            )
+            bank_user = result.scalars().first()
+            if bank_user:
+                logger.info(f"[{bank_code}] Found bank_user_id: {bank_user.bank_user_id} for user {user_id}")
+                return bank_user.bank_user_id
+            else:
+                logger.warning(f"[{bank_code}] No bank_user_id found for user {user_id}")
+                return None
+        except Exception as e:
+            logger.error(f"[{bank_code}] Error getting bank_user_id: {e}")
+            return None
+    
     async def get_all_accounts_full_cycle(
         self,
         bank_code: str,
-        user_id: str
+        user_id: str,
+        db: Optional[AsyncSession] = None,
+        internal_user_id: Optional[int] = None
     ) -> Dict:
         """
         Выполнить полный цикл получения счетов для одного банка:
         1. Получить access token банка
-        2. Запросить согласие
-        3. Получить счета
+        2. Получить bank_user_id из базы данных
+        3. Запросить согласие
+        4. Получить счета
+        
+        Args:
+            bank_code: Bank code
+            user_id: Bank user ID (если не указан, будет получен из БД)
+            db: Database session (опционально, нужен для получения bank_user_id)
+            internal_user_id: Internal user ID (нужен для получения bank_user_id из БД)
         
         Returns:
             dict: {"success": True/False, "accounts": [...], "consent_id": "...", "error": "..."}
         """
         try:
             logger.info(f"[{bank_code}] STARTING FULL CYCLE for user {user_id}")
+            
+            # Получаем bank_user_id из БД - ОБЯЗАТЕЛЬНО требуется!
+            bank_user_id = None
+            if db and internal_user_id:
+                db_bank_user_id = await self.get_bank_user_id(db, internal_user_id, bank_code)
+                if db_bank_user_id:
+                    bank_user_id = db_bank_user_id
+                    logger.info(f"[{bank_code}] Using bank_user_id from DB: {bank_user_id}")
+                else:
+                    logger.error(f"[{bank_code}] No bank_user_id found in DB for user {internal_user_id}")
+                    return {
+                        "success": False,
+                        "error": f"No bank_user_id found for {bank_code}. Please set bank_user_id in your profile first."
+                    }
+            else:
+                # Если нет db или internal_user_id, проверяем, что user_id выглядит как полный client_id
+                # (должен содержать дефис или быть в формате teamXXX-X)
+                if not ("-" in str(user_id) or user_id.startswith("team")):
+                    logger.error(f"[{bank_code}] Invalid user_id format: {user_id}. Expected full client_id (e.g., team261-1)")
+                    return {
+                        "success": False,
+                        "error": f"Invalid user_id format. Please set bank_user_id in your profile for {bank_code}."
+                    }
+                bank_user_id = user_id
+                logger.info(f"[{bank_code}] Using provided bank_user_id: {bank_user_id}")
+            
+            if not bank_user_id:
+                return {
+                    "success": False,
+                    "error": f"bank_user_id is required for {bank_code}. Please set it in your profile."
+                }
             
             # ШАГ 1: Получить токен банка
             logger.info(f"[{bank_code}] STEP 1: Getting bank access token...")
@@ -533,8 +674,8 @@ class UniversalBankAPIService:
                 }
             
             # ШАГ 2: Запросить согласие
-            logger.info(f"[{bank_code}] STEP 2: Requesting account consent...")
-            consent_data = await self.request_account_consent(bank_code, access_token, user_id)
+            logger.info(f"[{bank_code}] STEP 2: Requesting account consent for bank_user_id {bank_user_id}...")
+            consent_data = await self.request_account_consent(bank_code, access_token, bank_user_id)
             
             if not consent_data:
                 return {
@@ -545,8 +686,8 @@ class UniversalBankAPIService:
             consent_id = consent_data.get("consent_id")
             
             # ШАГ 3: Получить счета
-            logger.info(f"[{bank_code}] STEP 3: Fetching user accounts...")
-            accounts_data = await self.get_accounts(bank_code, access_token, user_id, consent_id)
+            logger.info(f"[{bank_code}] STEP 3: Fetching user accounts for bank_user_id {bank_user_id}...")
+            accounts_data = await self.get_accounts(bank_code, access_token, bank_user_id, consent_id)
             
             if not accounts_data:
                 return {
@@ -573,14 +714,18 @@ class UniversalBankAPIService:
     async def get_accounts_from_all_banks(
         self,
         user_id: str,
-        bank_codes: Optional[List[str]] = None
+        bank_codes: Optional[List[str]] = None,
+        db: Optional[AsyncSession] = None,
+        internal_user_id: Optional[int] = None
     ) -> Dict[str, Dict]:
         """
         Получить счета из всех банков (или выбранных)
         
         Args:
-            user_id: ID пользователя
+            user_id: ID пользователя (fallback если нет в БД)
             bank_codes: Список кодов банков (если None - все банки)
+            db: Database session (опционально)
+            internal_user_id: Internal user ID (для получения bank_user_id из БД)
         
         Returns:
             dict: {
@@ -596,7 +741,12 @@ class UniversalBankAPIService:
         
         for bank_code in bank_codes:
             logger.info(f"Processing bank: {bank_code}")
-            result = await self.get_all_accounts_full_cycle(bank_code, user_id)
+            result = await self.get_all_accounts_full_cycle(
+                bank_code=bank_code,
+                user_id=user_id,
+                db=db,
+                internal_user_id=internal_user_id
+            )
             results[bank_code] = result
         
         return results

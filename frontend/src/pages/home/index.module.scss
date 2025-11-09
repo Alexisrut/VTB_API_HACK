@@ -1,0 +1,88 @@
+@use "../../styles/vars.scss" as *;
+@use "../../styles/mixins" as *;
+
+$md: 768px;
+$lg: 1024px;
+$xl: 1280px;
+
+.headerRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.userButton {
+  width: 48px;
+  height: 48px;
+  border-radius: $radius-md;
+  background: $gradient-primary;
+  border: 1px solid $primary;
+  color: $foreground;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: $transition-smooth;
+  box-shadow: $shadow-soft;
+
+  &:hover {
+    box-shadow: $shadow-medium, $shadow-glow;
+    transform: translateY(-2px);
+    border-color: $primary-light;
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
+.dashboardContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+
+.headerSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+
+.mainTitle {
+  font-size: 3rem;
+  font-weight: 700;
+  color: $foreground;
+  @include text-glow($primary);
+}
+
+
+.subtitle {
+  font-size: 1.125rem;
+  color: $muted-foreground;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1.5rem;
+
+  @media (min-width: $md) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: $lg) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.chartsGrid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 2rem;
+
+  @media (min-width: $xl) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
