@@ -157,7 +157,9 @@ export const logout = () => {
 
 
 export interface BankAccount {
-  account_id: string;
+  account_id?: string;
+  id?: string;
+  accountId?: string;
   account_type?: string;
   currency?: string;
   nickname?: string;
@@ -166,6 +168,7 @@ export interface BankAccount {
     identification?: string;
     name?: string;
     secondaryIdentification?: string;
+    account_id?: string;
   };
   balances?: Array<{
     balanceAmount: {
@@ -175,6 +178,16 @@ export interface BankAccount {
     balanceType: string;
     creditDebitIndicator: string;
   }>;
+}
+
+// Вспомогательная функция для получения account_id из разных форматов
+export const getAccountId = (account: BankAccount): string | null => {
+  return account.account_id || 
+         account.id || 
+         account.accountId || 
+         account.account?.identification || 
+         account.account?.account_id || 
+         null;
 }
 
 export interface BankAccountsResponse {
@@ -217,6 +230,35 @@ export interface BankTransactionsResponse {
   total_count: number;
 }
 
+export interface BankBalance {
+  accountId?: string;
+  amount?: {
+    amount: string;
+    currency: string;
+  } | string;
+  balanceAmount?: {
+    amount: string;
+    currency: string;
+  };
+  type?: string;
+  balanceType?: string;
+  creditDebitIndicator?: string;
+  dateTime?: string;
+}
+
+export interface BankBalancesResponse {
+  success: boolean;
+  balances: BankBalance[] | {
+    data?: {
+      balance?: BankBalance[];
+    };
+    Data?: {
+      Balance?: BankBalance[];
+    };
+    balance?: BankBalance[];
+  };
+}
+
 // Получить все счета из всех банков
 export const getAllBankAccounts = () => {
   return api.get<BankAccountsResponse>("/api/v1/banks/accounts/all");
@@ -229,6 +271,81 @@ export const getBankAccounts = (bankCode: string) => {
   );
 };
 
+// Получить балансы счета
+export const getAccountBalances = (
+  accountId: string,
+  bankCode: string,
+  consentId?: string
+) => {
+  const params = new URLSearchParams({
+    bank_code: bankCode,
+  });
+  if (consentId) params.append("consent_id", consentId);
+  
+  return api.get<BankBalancesResponse>(
+    `/api/v1/banks/accounts/${accountId}/balances?${params.toString()}`
+  );
+};
+
+// Утилита для извлечения баланса из ответа API
+export const extractBalanceFromResponse = (response: { data: BankBalancesResponse }): number => {
+  let balances = response.data.balances;
+  
+  // Поддерживаем разные форматы ответа
+  if (balances && !Array.isArray(balances)) {
+    // Формат: { data: { balance: [...] } }
+    if ((balances as any).data?.balance) {
+      balances = (balances as any).data.balance;
+    }
+    // Формат: { Data: { Balance: [...] } }
+    else if ((balances as any).Data?.Balance) {
+      balances = (balances as any).Data.Balance;
+    }
+    // Формат: массив напрямую
+    else if (Array.isArray((balances as any).balance)) {
+      balances = (balances as any).balance;
+    }
+  }
+  
+  if (Array.isArray(balances) && balances.length > 0) {
+    // Ищем баланс типа "InterimAvailable" или "InterimBooked"
+    // Поддерживаем оба формата: balanceType/type и balanceAmount/amount
+    const balance = balances.find(
+      (b: any) => 
+        (b.type === "InterimAvailable" || b.balanceType === "InterimAvailable") ||
+        (b.type === "InterimBooked" || b.balanceType === "InterimBooked")
+    ) || balances[0];
+    
+    // Извлекаем сумму из разных форматов
+    // Поддерживаем: amount.amount, balanceAmount.amount, amount (строка)
+    let amountStr: string | undefined;
+    
+    if (balance?.amount) {
+      if (typeof balance.amount === "object" && balance.amount.amount) {
+        amountStr = balance.amount.amount;
+      } else if (typeof balance.amount === "string") {
+        amountStr = balance.amount;
+      }
+    }
+    
+    if (!amountStr && balance?.balanceAmount) {
+      if (typeof balance.balanceAmount === "object" && balance.balanceAmount.amount) {
+        amountStr = balance.balanceAmount.amount;
+      } else if (typeof balance.balanceAmount === "string") {
+        amountStr = balance.balanceAmount;
+      }
+    }
+    
+    if (amountStr) {
+      const parsed = parseFloat(String(amountStr));
+      if (!isNaN(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  
+  return 0;
+};
 
 export const getAccountTransactions = (
   accountId: string,

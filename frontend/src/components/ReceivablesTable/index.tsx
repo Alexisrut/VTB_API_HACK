@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "../../ui/table";
 import { useEffect, useState } from "react";
-import { getAllBankAccounts, getAccountTransactions, type BankAccount, type BankTransaction } from "../../utils/api";
+import { getAllBankAccounts, getAccountTransactions, getAccountBalances, getAccountId, type BankAccount, type BankTransaction } from "../../utils/api";
 import { useAuth } from "../../hooks/useAuth";
 import styles from "./index.module.scss";
 import { Phone } from "lucide-react";
@@ -87,7 +87,7 @@ export default function ReceivablesTable() {
         const fromDate = thirtyDaysAgo.toISOString().split("T")[0];
         const toDate = now.toISOString().split("T")[0];
 
-        // Получаем транзакции из всех счетов
+        // Получаем транзакции и балансы из всех счетов
         const transactionPromises: Promise<void>[] = [];
 
         Object.entries(accountsData.banks || {}).forEach(([bankCode, bankData]) => {
@@ -96,10 +96,8 @@ export default function ReceivablesTable() {
           if (bankData.success && bankData.accounts && bankData.accounts.length > 0) {
             console.log(`[ReceivablesTable] Bank ${bankCode} has ${bankData.accounts.length} accounts`);
             bankData.accounts.forEach((account) => {
-              // Извлекаем account_id из разных возможных мест
-              const accountId = account.account_id || account.id || account.accountId || 
-                               (account.account?.identification) || 
-                               (account.account?.account_id);
+              // Получаем account_id используя унифицированную функцию
+              const accountId = getAccountId(account);
               
               if (!accountId) {
                 console.warn(`[ReceivablesTable] Skipping account without account_id:`, account);
@@ -107,6 +105,27 @@ export default function ReceivablesTable() {
               }
               
               console.log(`[ReceivablesTable] Fetching transactions for account ${accountId} from ${bankCode}`);
+              
+              // Получаем баланс счета (сервер автоматически использует сохраненный consent_id)
+              const balancePromise = getAccountBalances(
+                accountId,
+                bankCode,
+                bankData.consent_id // опционально, сервер получит из БД если не указано
+              )
+                .then((response) => {
+                  console.log(`[ReceivablesTable] Balance for account ${accountId}:`, response.data);
+                  // Здесь можно обработать баланс, например, сохранить в состояние или отобразить
+                })
+                .catch((err) => {
+                  console.error(`[ReceivablesTable] Error fetching balance for account ${accountId}:`, err);
+                  console.error(`[ReceivablesTable] Error details:`, {
+                    message: err.message,
+                    response: err.response?.data,
+                    status: err.response?.status,
+                  });
+                });
+              
+              transactionPromises.push(balancePromise);
               
               // Сервер автоматически использует сохраненный consent_id
               const promise = getAccountTransactions(

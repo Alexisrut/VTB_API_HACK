@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Badge } from "../../ui/badge";
 import { Building2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getAllBankAccounts, type BankAccount } from "../../utils/api";
+import { getAllBankAccounts, getAccountBalances, extractBalanceFromResponse, getAccountId, type BankAccount } from "../../utils/api";
 import { useAuth } from "../../hooks/useAuth";
 import styles from "./index.module.scss";
 
@@ -73,6 +73,7 @@ export default function BankAccountsList() {
         }
 
         const accountsList: AccountDisplay[] = [];
+        const balancePromises: Promise<void>[] = [];
 
         // Обрабатываем счета из всех банков
         Object.entries(data.banks || {}).forEach(([bankCode, bankData]) => {
@@ -81,17 +82,56 @@ export default function BankAccountsList() {
           if (bankData.success && bankData.accounts) {
             console.log(`[BankAccountList] Bank ${bankCode} has ${bankData.accounts.length} accounts`);
             bankData.accounts.forEach((account) => {
-              const balance = getAccountBalance(account);
-              const currency = account.currency || account.balances?.[0]?.balanceAmount?.currency || "₽";
+              // Получаем account_id используя унифицированную функцию
+              const accountId = getAccountId(account);
+              if (!accountId) {
+                console.warn(`[BankAccountList] Skipping account without account_id:`, account);
+                return;
+              }
               
-              accountsList.push({
+              // Используем баланс из данных счета как начальное значение
+              const initialBalance = getAccountBalance(account);
+              const currency = account.currency || account.balances?.[0]?.balanceAmount?.currency || "RUB";
+              
+              const accountDisplay: AccountDisplay = {
                 bank: bankNames[bankCode] || bankCode,
-                balance,
+                balance: initialBalance,
                 currency: currency === "RUB" ? "₽" : currency,
                 lastSync: formatTimeAgo(lastSyncTime),
                 status: "active",
-                accountId: account.account_id,
-              });
+                accountId: accountId,
+              };
+              
+              accountsList.push(accountDisplay);
+              
+              // Запрашиваем актуальный баланс через API
+              const balancePromise = getAccountBalances(
+                accountId,
+                bankCode,
+                bankData.consent_id
+              )
+                .then((response) => {
+                  console.log(`[BankAccountList] Balance for account ${accountId}:`, response.data);
+                  
+                  // Извлекаем баланс из ответа
+                  const newBalance = extractBalanceFromResponse(response);
+                  console.log(`[BankAccountList] Extracted balance for ${accountId}:`, newBalance);
+                  
+                  // Обновляем баланс в списке (может быть отрицательным для овердрафта)
+                  setAccounts((prev) =>
+                    prev.map((acc) =>
+                      acc.accountId === accountId
+                        ? { ...acc, balance: newBalance }
+                        : acc
+                    )
+                  );
+                })
+                .catch((err) => {
+                  console.error(`[BankAccountList] Error fetching balance for account ${accountId}:`, err);
+                  // Не показываем ошибку пользователю, просто используем начальный баланс
+                });
+              
+              balancePromises.push(balancePromise);
             });
           } else {
             const errorMsg = bankData.error || "No accounts";
@@ -107,6 +147,11 @@ export default function BankAccountsList() {
         console.log(`[BankAccountList] Total accounts found: ${accountsList.length}`);
         setAccounts(accountsList);
         setLastSyncTime(new Date());
+        
+        // Ждем завершения всех запросов балансов (в фоне, не блокируя UI)
+        Promise.all(balancePromises).then(() => {
+          console.log(`[BankAccountList] All balance requests completed`);
+        });
       } catch (err: any) {
         console.error("[BankAccountList] Error fetching bank accounts:", err);
         console.error("[BankAccountList] Error details:", {

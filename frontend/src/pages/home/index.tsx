@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthModal } from "../Auth";
 import { useAuth } from "../../hooks/useAuth";
-import { getDashboardSummary, getAllBankAccounts, type DashboardSummary } from "../../utils/api";
+import { getDashboardSummary, getAllBankAccounts, getAccountBalances, extractBalanceFromResponse, getAccountId, type DashboardSummary } from "../../utils/api";
 
 export default function Index() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -18,6 +18,8 @@ export default function Index() {
   const { isAuthenticated, isLoading } = useAuth();
   const [dashboardData, setDashboardData] = useState<DashboardSummary["summary"] | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
+  const [totalBalance, setTotalBalance] = useState<number | null>(null);
+  const [accountsCount, setAccountsCount] = useState<number>(0);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -40,6 +42,74 @@ export default function Index() {
     };
 
     fetchDashboardData();
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const fetchBalances = async () => {
+      try {
+        console.log("[Dashboard] Fetching accounts and balances...");
+        const accountsResponse = await getAllBankAccounts();
+        const accountsData = accountsResponse.data;
+        
+        if (!accountsData.success) {
+          console.warn("[Dashboard] Failed to get accounts");
+          return;
+        }
+
+        let count = 0;
+        const balancePromises: Promise<number>[] = [];
+
+        Object.entries(accountsData.banks || {}).forEach(([bankCode, bankData]) => {
+          if (bankData.success && bankData.accounts && bankData.accounts.length > 0) {
+            count += bankData.accounts.length;
+            
+            bankData.accounts.forEach((account) => {
+              const accountId = getAccountId(account);
+              if (!accountId) {
+                console.warn(`[Dashboard] Skipping account without account_id:`, account);
+                return;
+              }
+              
+              const balancePromise = getAccountBalances(
+                accountId,
+                bankCode,
+                bankData.consent_id
+              )
+                .then((response) => {
+                  console.log(`[Dashboard] Balance for account ${accountId}:`, response.data);
+                  
+                  // Извлекаем баланс из ответа
+                  const balance = extractBalanceFromResponse(response);
+                  console.log(`[Dashboard] Extracted balance for ${accountId}:`, balance);
+                  return balance;
+                })
+                .catch((err) => {
+                  console.error(`[Dashboard] Error fetching balance for account ${accountId}:`, err);
+                  return 0;
+                });
+              
+              balancePromises.push(balancePromise);
+            });
+          }
+        });
+
+        setAccountsCount(count);
+        
+        // Ждем все запросы и суммируем балансы
+        const balances = await Promise.all(balancePromises);
+        const total = balances.reduce((sum, balance) => sum + balance, 0);
+        setTotalBalance(total);
+        console.log(`[Dashboard] Total balance calculated: ${total}`);
+      } catch (err: any) {
+        console.error("[Dashboard] Error fetching balances:", err);
+      }
+    };
+
+    fetchBalances();
   }, [isAuthenticated]);
 
   const handleUserClick = () => {
@@ -97,8 +167,8 @@ export default function Index() {
         <div className={styles.statsGrid}>
           <StatCard
             title="Общий баланс"
-            value={dashboardData ? `₽${(dashboardData.total_balance || 0).toLocaleString()}` : "—"}
-            subtitle={dashboardData ? `${dashboardData.accounts_count || 0} счетов` : "Загрузка..."}
+            value={totalBalance !== null ? `₽${totalBalance.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : (dashboardData ? `₽${(dashboardData.total_balance || 0).toLocaleString()}` : "—")}
+            subtitle={accountsCount > 0 ? `${accountsCount} счет${accountsCount === 1 ? "" : accountsCount < 5 ? "а" : "ов"}` : (dashboardData ? `${dashboardData.accounts_count || 0} счетов` : "Загрузка...")}
             icon={Wallet}
             variant="default"
           />

@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from ".
 import { Calendar, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../hooks/useAuth";
-import { getAllBankAccounts, getAccountTransactions, type BankTransaction } from "../../utils/api";
+import { getAllBankAccounts, getAccountTransactions, getAccountId, type BankTransaction } from "../../utils/api";
 import styles from "./index.module.scss";
 import { toast } from "sonner";
 
@@ -42,10 +42,8 @@ export default function Payments() {
         Object.entries(accountsRes.data.banks || {}).forEach(([bankCode, bankData]) => {
           if (bankData.success && bankData.accounts) {
             bankData.accounts.forEach((account) => {
-              // Извлекаем account_id из разных возможных мест
-              const accountId = account.account_id || account.id || account.accountId || 
-                               (account.account?.identification) || 
-                               (account.account?.account_id);
+              // Получаем account_id используя унифицированную функцию
+              const accountId = getAccountId(account);
               
               if (!accountId) {
                 console.warn(`[Payments] Skipping account without account_id:`, account);

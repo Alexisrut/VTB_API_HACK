@@ -259,7 +259,7 @@ async def get_account_details(
 async def get_account_balances(
     account_id: str,
     bank_code: str = Query(..., description="Код банка"),
-    consent_id: str = Query(..., description="ID согласия"),
+    consent_id: Optional[str] = Query(None, description="ID согласия (если не указано, будет получен из БД)"),
     user_id: int = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -269,9 +269,31 @@ async def get_account_balances(
     **Параметры:**
     - **account_id**: ID счета
     - **bank_code**: Код банка
-    - **consent_id**: ID согласия
+    - **consent_id**: ID согласия (опционально, если не указано - будет получен из БД)
     """
     try:
+        # Если consent_id не указан, получаем его из БД
+        if not consent_id:
+            from app.models import BankConsent
+            from sqlalchemy import select, and_
+            stmt = select(BankConsent).where(
+                and_(
+                    BankConsent.user_id == user_id,
+                    BankConsent.bank_code == bank_code,
+                    BankConsent.status == "approved"
+                )
+            ).order_by(BankConsent.created_at.desc())
+            result = await db.execute(stmt)
+            consent = result.scalar_one_or_none()
+            
+            if not consent:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"No active consent found for {bank_code}. Please sync accounts first."
+                )
+            consent_id = consent.consent_id
+            logger.info(f"Using consent_id from DB: {consent_id} for bank {bank_code}")
+        
         access_token = await universal_bank_service.get_bank_access_token(bank_code)
         if not access_token:
             raise HTTPException(

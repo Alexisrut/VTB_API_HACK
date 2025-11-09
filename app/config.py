@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     VBANK_CLIENT_ID: str = "team261-1"
     VBANK_CLIENT_SECRET: str = "gBRvg9R6lYhvWHAOQFOH1HGarl1q80Rt"
     VBANK_REQUESTING_BANK: str = "team261"
-    VBANK_REQUESTING_BANK_NAME: str = "Team 200 Virtual Bank App"
+    VBANK_REQUESTING_BANK_NAME: str = "Team 261 Virtual Bank App"
     VBANK_REDIRECTING_URL: str = "https://vbank.open.bankingapi.ru/client/"
     
     # Awesome Bank (abank)
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     ABANK_CLIENT_ID: str = "team261-1"
     ABANK_CLIENT_SECRET: str = "gBRvg9R6lYhvWHAOQFOH1HGarl1q80Rt"
     ABANK_REQUESTING_BANK: str = "team261"
-    ABANK_REQUESTING_BANK_NAME: str = "Team 200 Awesome Bank App"
+    ABANK_REQUESTING_BANK_NAME: str = "Team 261 Awesome Bank App"
     ABANK_REDIRECTING_URL: str = "https://abank.open.bankingapi.ru/client/"
     
     # Smart Bank (sbank)
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     SBANK_CLIENT_ID: str = "team261-1"
     SBANK_CLIENT_SECRET: str = "gBRvg9R6lYhvWHAOQFOH1HGarl1q80Rt"
     SBANK_REQUESTING_BANK: str = "team261"
-    SBANK_REQUESTING_BANK_NAME: str = "Team 200 Smart Bank App"
+    SBANK_REQUESTING_BANK_NAME: str = "Team 261 Smart Bank App"
     SBANK_REDIRECTING_URL: str = "https://sbank.open.bankingapi.ru/client/"
     
     class Config:
