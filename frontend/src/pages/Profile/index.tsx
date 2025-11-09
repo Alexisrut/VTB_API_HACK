@@ -1,12 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { eraseCookie } from "../../utils/cookies";
-import { logout, getUserBankUsers, saveBankUser, deleteBankUser } from "../../utils/api";
+import { eraseCookie, setCookie, getCookie } from "../../utils/cookies";
+import { logout, getUserBankUsers, saveBankUser, deleteBankUser, createAccountConsent, getUserConsents, type BankConsent } from "../../utils/api";
 import Layout from "../../components/Layout";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
-import { CircleUser, Mail, Phone, Building2, Save, Trash2 } from "lucide-react";
+import { CircleUser, Mail, Phone, Building2, Save, Trash2, Shield, CheckCircle2 } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import styles from "./index.module.scss";
@@ -24,6 +24,9 @@ export default function Profile() {
   const [bankUserInputs, setBankUserInputs] = useState<Record<string, string>>({});
   const [isLoadingBankUsers, setIsLoadingBankUsers] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
+  const [consents, setConsents] = useState<Record<string, BankConsent>>({});
+  const [isLoadingConsents, setIsLoadingConsents] = useState(true);
+  const [creatingConsent, setCreatingConsent] = useState<Record<string, boolean>>({});
 
   const loadBankUsers = useCallback(async () => {
     try {
@@ -39,11 +42,30 @@ export default function Profile() {
     }
   }, []);
 
+  const loadConsents = useCallback(async () => {
+    try {
+      setIsLoadingConsents(true);
+      const response = await getUserConsents();
+      const consentsMap: Record<string, BankConsent> = {};
+      (response.data.consents || []).forEach((consent: BankConsent) => {
+        consentsMap[consent.bank_code] = consent;
+        // Сохраняем согласие в куки для использования в других запросах
+        setCookie(`consent_${consent.bank_code}`, consent.consent_id, 365);
+      });
+      setConsents(consentsMap);
+    } catch (error) {
+      console.error("Error loading consents:", error);
+    } finally {
+      setIsLoadingConsents(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (user) {
       loadBankUsers();
+      loadConsents();
     }
-  }, [user, loadBankUsers]);
+  }, [user, loadBankUsers, loadConsents]);
 
   const handleSaveBankUser = async (bankCode: string) => {
     const bankUserId = bankUserInputs[bankCode]?.trim();
@@ -105,6 +127,54 @@ export default function Profile() {
         description: errorMessage,
         duration: 1500,
       });
+    }
+  };
+
+  const handleCreateConsent = async (bankCode: string) => {
+    if (!bankUsers[bankCode]) {
+      toast.error("Сначала укажите ID пользователя в банке", {
+        description: `Для ${bankNames[bankCode]} необходимо указать ID пользователя`,
+        duration: 2000,
+      });
+      return;
+    }
+
+    try {
+      setCreatingConsent((prev) => ({ ...prev, [bankCode]: true }));
+      const response = await createAccountConsent(bankCode);
+      
+      // Сохраняем согласие в куки
+      setCookie(`consent_${bankCode}`, response.data.consent_id, 365);
+      
+      // Обновляем список согласий
+      const newConsent: BankConsent = {
+        consent_id: response.data.consent_id,
+        bank_code: bankCode,
+        status: response.data.status,
+        auto_approved: response.data.auto_approved,
+        expires_at: response.data.expires_at,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      
+      setConsents((prev) => ({
+        ...prev,
+        [bankCode]: newConsent,
+      }));
+      
+      toast.success(`Согласие для ${bankNames[bankCode]} создано`, {
+        description: `ID: ${response.data.consent_id}`,
+        duration: 2000,
+      });
+    } catch (error: any) {
+      console.error("Error creating consent:", error);
+      const errorMessage = error.response?.data?.detail || "Ошибка при создании согласия";
+      toast.error("Не удалось создать согласие", {
+        description: errorMessage,
+        duration: 2000,
+      });
+    } finally {
+      setCreatingConsent((prev) => ({ ...prev, [bankCode]: false }));
     }
   };
 
@@ -241,6 +311,95 @@ export default function Profile() {
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Consents Section */}
+          <div className={styles.consentsSection}>
+            <h2 className={styles.sectionTitle}>Согласия на доступ к данным</h2>
+            <p className={styles.sectionDescription}>
+              Создайте согласие для каждого банка, чтобы получать данные о счетах, балансах и транзакциях.
+            </p>
+            
+            {isLoadingConsents ? (
+              <div className={styles.loading}>Загрузка...</div>
+            ) : (
+              <div className={styles.consentsList}>
+                {(["vbank", "abank", "sbank"] as const).map((bankCode) => {
+                  const consent = consents[bankCode];
+                  const hasBankUser = !!bankUsers[bankCode];
+                  
+                  return (
+                    <div key={bankCode} className={styles.consentItem}>
+                      <div className={styles.consentHeader}>
+                        <div className={styles.consentIcon}>
+                          <Shield size={20} />
+                        </div>
+                        <Label className={styles.consentLabel}>
+                          {bankNames[bankCode]}
+                        </Label>
+                        {consent && consent.status === "approved" && (
+                          <div className={styles.consentStatus}>
+                            <CheckCircle2 size={16} className={styles.consentStatusIcon} />
+                            <span>Активно</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {consent ? (
+                        <div className={styles.consentInfo}>
+                          <div className={styles.consentDetails}>
+                            <div className={styles.consentDetail}>
+                              <span className={styles.consentDetailLabel}>ID согласия:</span>
+                              <span className={styles.consentDetailValue}>{consent.consent_id}</span>
+                            </div>
+                            {consent.expires_at && (
+                              <div className={styles.consentDetail}>
+                                <span className={styles.consentDetailLabel}>Истекает:</span>
+                                <span className={styles.consentDetailValue}>
+                                  {new Date(consent.expires_at).toLocaleDateString("ru-RU")}
+                                </span>
+                              </div>
+                            )}
+                            <div className={styles.consentDetail}>
+                              <span className={styles.consentDetailLabel}>Статус:</span>
+                              <span className={styles.consentDetailValue}>{consent.status}</span>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => handleCreateConsent(bankCode)}
+                            disabled={creatingConsent[bankCode] || !hasBankUser}
+                            className={styles.createConsentButton}
+                          >
+                            <Shield size={16} />
+                            {creatingConsent[bankCode] ? "Создание..." : "Обновить согласие"}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className={styles.consentInfo}>
+                          <div className={styles.consentEmpty}>
+                            {hasBankUser ? (
+                              <p>Согласие не создано. Нажмите кнопку ниже для создания.</p>
+                            ) : (
+                              <p>Сначала укажите ID пользователя в банке выше.</p>
+                            )}
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => handleCreateConsent(bankCode)}
+                            disabled={creatingConsent[bankCode] || !hasBankUser}
+                            className={styles.createConsentButton}
+                          >
+                            <Shield size={16} />
+                            {creatingConsent[bankCode] ? "Создание..." : "Создать согласие"}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

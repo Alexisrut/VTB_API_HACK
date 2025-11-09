@@ -98,7 +98,7 @@ class UniversalBankAPIService:
             bank = self._get_bank_config(bank_code)
             
             if permissions is None:
-                permissions = ["ReadAccountsDetail", "ReadBalances"]
+                permissions = ["ReadAccountsDetail", "ReadBalances", "ReadTransactionsDetail"]
             
             async with aiohttp.ClientSession() as session:
                 url = f"{bank.api_url}/account-consents/request"
@@ -121,12 +121,26 @@ class UniversalBankAPIService:
                 async with session.post(url, json=body, headers=headers) as resp:
                     if resp.status in [200, 201]:
                         data = await resp.json()
-                        logger.info(f"[{bank_code}] Consent received: {data.get('consent_id')}")
-                        return {
-                            "status": data.get("status", "approved"),
-                            "consent_id": data.get("consent_id"),
-                            "auto_approved": data.get("auto_approved", True)
-                        }
+                        logger.info(f"[{bank_code}] Consent received: status={data.get('status')}, consent_id={data.get('consent_id')}, request_id={data.get('request_id')}")
+                        
+                        # Обрабатываем разные форматы ответа
+                        # Может быть: {"status": "approved", "consent_id": "..."}
+                        # Или: {"data": {"status": "pending", "request_id": "..."}}
+                        if isinstance(data, dict) and "data" in data:
+                            consent_data = data["data"]
+                            return {
+                                "status": consent_data.get("status", "approved"),
+                                "consent_id": consent_data.get("consent_id") or consent_data.get("request_id"),
+                                "request_id": consent_data.get("request_id"),
+                                "auto_approved": consent_data.get("auto_approved", True)
+                            }
+                        else:
+                            return {
+                                "status": data.get("status", "approved"),
+                                "consent_id": data.get("consent_id") or data.get("request_id"),
+                                "request_id": data.get("request_id"),
+                                "auto_approved": data.get("auto_approved", True)
+                            }
                     else:
                         error_text = await resp.text()
                         logger.error(f"[{bank_code}] Failed to request consent: {resp.status} - {error_text}")
@@ -344,8 +358,11 @@ class UniversalBankAPIService:
                 headers = {
                     "Authorization": f"Bearer {access_token}",
                     "X-Requesting-Bank": bank.requesting_bank,
-                    "X-Consent-Id": consent_id
                 }
+                
+                # Добавляем X-Consent-Id только если он не None
+                if consent_id:
+                    headers["X-Consent-Id"] = consent_id
                 
                 logger.info(f"[{bank_code}] Getting account details: {account_id}")
                 async with session.get(url, headers=headers) as resp:
@@ -383,8 +400,11 @@ class UniversalBankAPIService:
                 headers = {
                     "Authorization": f"Bearer {access_token}",
                     "X-Requesting-Bank": bank.requesting_bank,
-                    "X-Consent-Id": consent_id
                 }
+                
+                # Добавляем X-Consent-Id только если он не None
+                if consent_id:
+                    headers["X-Consent-Id"] = consent_id
                 
                 logger.info(f"[{bank_code}] Getting balances for account: {account_id}")
                 async with session.get(url, headers=headers) as resp:
@@ -408,17 +428,27 @@ class UniversalBankAPIService:
         access_token: str,
         account_id: str,
         consent_id: str,
-        from_date: Optional[str] = None,
-        to_date: Optional[str] = None
+        from_booking_date_time: Optional[str] = None,
+        to_booking_date_time: Optional[str] = None,
+        page: Optional[int] = None,
+        limit: Optional[int] = None
     ) -> Optional[Dict]:
         """
         Получить транзакции по счету
         
         GET https://{bank}.open.bankingapi.ru/accounts/{account_id}/transactions
         
+        Согласно OpenAPI спецификации:
+        - from_booking_date_time: Дата начала в формате ISO 8601 (например: "2025-01-01T00:00:00Z")
+        - to_booking_date_time: Дата конца в формате ISO 8601 (например: "2025-12-31T23:59:59Z")
+        - page: Номер страницы (по умолчанию: 1)
+        - limit: Количество транзакций на странице (по умолчанию: 50, макс: 500)
+        
         Args:
-            from_date: Дата начала в формате YYYY-MM-DD
-            to_date: Дата конца в формате YYYY-MM-DD
+            from_booking_date_time: Дата начала в формате ISO 8601 или YYYY-MM-DD (будет преобразована)
+            to_booking_date_time: Дата конца в формате ISO 8601 или YYYY-MM-DD (будет преобразована)
+            page: Номер страницы
+            limit: Количество транзакций на странице (макс: 500)
         """
         try:
             bank = self._get_bank_config(bank_code)
@@ -427,22 +457,65 @@ class UniversalBankAPIService:
                 url = f"{bank.api_url}/accounts/{account_id}/transactions"
                 
                 params = {}
-                if from_date:
-                    params["fromBookingDateTime"] = from_date
-                if to_date:
-                    params["toBookingDateTime"] = to_date
+                
+                # Преобразуем даты в формат ISO 8601 если нужно
+                if from_booking_date_time:
+                    # Если дата в формате YYYY-MM-DD, добавляем время
+                    if len(from_booking_date_time) == 10:
+                        from_booking_date_time = f"{from_booking_date_time}T00:00:00Z"
+                    params["from_booking_date_time"] = from_booking_date_time
+                
+                if to_booking_date_time:
+                    # Если дата в формате YYYY-MM-DD, добавляем время
+                    if len(to_booking_date_time) == 10:
+                        to_booking_date_time = f"{to_booking_date_time}T23:59:59Z"
+                    params["to_booking_date_time"] = to_booking_date_time
+                
+                if page is not None:
+                    params["page"] = page
+                
+                if limit is not None:
+                    # Ограничиваем максимум 500 согласно OpenAPI
+                    limit = min(limit, 500)
+                    params["limit"] = limit
                 
                 headers = {
                     "Authorization": f"Bearer {access_token}",
                     "X-Requesting-Bank": bank.requesting_bank,
-                    "X-Consent-Id": consent_id
                 }
                 
-                logger.info(f"[{bank_code}] Getting transactions for account: {account_id}")
+                # Добавляем X-Consent-Id только если он не None
+                if consent_id:
+                    headers["X-Consent-Id"] = consent_id
+                
+                logger.info(f"[{bank_code}] Getting transactions for account: {account_id}, params: {params}")
                 async with session.get(url, params=params, headers=headers) as resp:
                     if resp.status == 200:
                         data = await resp.json()
                         logger.info(f"[{bank_code}] Transactions retrieved")
+                        
+                        # Обрабатываем разные форматы ответа (как с балансами)
+                        # Может быть: {"transactions": [...]} или {"data": {"transaction": [...]}}
+                        if isinstance(data, dict):
+                            # Стандартный формат: {"transactions": [...]}
+                            if "transactions" in data:
+                                return data
+                            # Альтернативный формат: {"data": {"transaction": [...]}}
+                            elif "data" in data and isinstance(data["data"], dict):
+                                if "transaction" in data["data"]:
+                                    transactions = data["data"]["transaction"]
+                                    if not isinstance(transactions, list):
+                                        transactions = [transactions]
+                                    return {"transactions": transactions}
+                                elif "transactions" in data["data"]:
+                                    return {"transactions": data["data"]["transactions"]}
+                            # Если transactions на верхнем уровне
+                            elif "transaction" in data:
+                                transactions = data["transaction"]
+                                if not isinstance(transactions, list):
+                                    transactions = [transactions]
+                                return {"transactions": transactions}
+                        
                         return data
                     else:
                         error_text = await resp.text()

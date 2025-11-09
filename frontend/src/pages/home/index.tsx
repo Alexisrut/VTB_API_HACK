@@ -174,21 +174,21 @@ export default function Index() {
           />
           <StatCard
             title="Доходы"
-            value={dashboardData ? `₽${(dashboardData.total_revenue || 0).toLocaleString()}` : "—"}
-            subtitle={dashboardData ? "За период" : "Загрузка..."}
+            value={dashboardData ? `₽${(dashboardData.total_revenue || 0).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            subtitle={dashboardData ? "За последние 30 дней" : "Загрузка..."}
             icon={TrendingUp}
             variant="success"
           />
           <StatCard
             title="Дебиторская задолженность"
-            value={dashboardData ? `₽${(dashboardData.total_ar || 0).toLocaleString()}` : "—"}
-            subtitle={dashboardData ? `Просрочено: ₽${(dashboardData.overdue_ar || 0).toLocaleString()}` : "Загрузка..."}
+            value={dashboardData ? `₽${(dashboardData.total_ar || 0).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
+            subtitle={dashboardData ? `Просрочено: ₽${(dashboardData.overdue_ar || 0).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "Загрузка..."}
             icon={AlertCircle}
             variant="danger"
           />
           <StatCard
             title="Чистая прибыль"
-            value={dashboardData ? `₽${(dashboardData.net_income || 0).toLocaleString()}` : "—"}
+            value={dashboardData ? `₽${(dashboardData.net_income || 0).toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
             subtitle={dashboardData ? (dashboardData.net_income && dashboardData.net_income >= 0 ? "Положительная" : "Отрицательная") : "Загрузка..."}
             icon={TrendingDown}
             variant={dashboardData && dashboardData.net_income && dashboardData.net_income >= 0 ? "success" : "warning"}

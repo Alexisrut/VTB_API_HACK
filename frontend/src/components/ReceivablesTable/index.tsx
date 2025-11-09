@@ -140,32 +140,38 @@ export default function ReceivablesTable() {
                   console.log(`[ReceivablesTable] Received ${transactions.length} transactions for account ${accountId}`);
                   
                   // Фильтруем входящие транзакции (Credit)
-                  transactions
-                    .filter((tx) => tx.creditDebitIndicator === "Credit")
-                    .forEach((tx) => {
-                      const amount = parseFloat(tx.amount?.amount || tx.amount || 0) || 0;
-                      const counterparty = 
-                        tx.creditorName || 
-                        tx.remittanceInformation?.unstructured || 
-                        tx.transactionInformation ||
-                        "Неизвестный контрагент";
-                      
-                      const bookingDate = tx.bookingDateTime || tx.valueDateTime;
-                      const status = bookingDate && isOverdue(bookingDate) 
-                        ? "overdue" 
-                        : bookingDate 
-                        ? "pending" 
-                        : "received";
+                  // Берем только первые 5 с каждого банка
+                  const creditTransactions = transactions
+                    .filter((tx) => {
+                      const indicator = tx.transaction_type || tx.creditDebitIndicator;
+                      return indicator === "Credit";
+                    })
+                    .slice(0, 5); // Ограничиваем до 5 транзакций с каждого банка
+                  
+                  creditTransactions.forEach((tx) => {
+                    // Извлекаем сумму из нового формата
+                    const amount = tx.amount || 0;
+                    
+                    // Используем название банка вместо контрагента
+                    const counterparty = bankNames[bankCode] || bankCode;
+                    
+                    // Извлекаем дату
+                    const bookingDate = tx.booking_date || tx.bookingDateTime || tx.value_date || tx.valueDateTime;
+                    const status = bookingDate && isOverdue(bookingDate) 
+                      ? "overdue" 
+                      : bookingDate 
+                      ? "pending" 
+                      : "received";
 
-                      receivablesList.push({
-                        id: tx.transactionId || `${accountId}-${tx.transactionReference || Date.now()}`,
-                        counterparty,
-                        amount,
-                        dueDate: formatDate(bookingDate),
-                        status: status as "pending" | "overdue" | "received",
-                        transactionId: tx.transactionId,
-                      });
+                    receivablesList.push({
+                      id: tx.transaction_id || tx.transactionId || `${accountId}-${tx.transactionReference || Date.now()}`,
+                      counterparty,
+                      amount,
+                      dueDate: formatDate(bookingDate),
+                      status: status as "pending" | "overdue" | "received",
+                      transactionId: tx.transaction_id || tx.transactionId,
                     });
+                  });
                 })
                 .catch((err) => {
                   console.error(`[ReceivablesTable] Error fetching transactions for account ${accountId}:`, err);
@@ -278,7 +284,7 @@ export default function ReceivablesTable() {
             <Table>
               <TableHeader>
                 <TableRow className={styles.tableRow}>
-                  <TableHead className={styles.counterparty}>Имя</TableHead>
+                  <TableHead className={styles.counterparty}>Банк</TableHead>
                   <TableHead className={styles.amount}>Сумма</TableHead>
                   <TableHead className={styles.dueDate}>Дата</TableHead>
                   <TableHead>Статус</TableHead>

@@ -8,6 +8,12 @@ import { getAllBankAccounts, getAccountTransactions, getAccountId, type BankTran
 import styles from "./index.module.scss";
 import { toast } from "sonner";
 
+const bankNames: { [key: string]: string } = {
+  vbank: "Virtual Bank",
+  abank: "Awesome Bank",
+  sbank: "Smart Bank",
+};
+
 export default function Payments() {
   const { isAuthenticated } = useAuth();
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -37,6 +43,12 @@ export default function Payments() {
         const fromDate = thirtyDaysAgo.toISOString().split("T")[0];
         const toDate = now.toISOString().split("T")[0];
 
+        const bankNames: { [key: string]: string } = {
+          vbank: "Virtual Bank",
+          abank: "Awesome Bank",
+          sbank: "Smart Bank",
+        };
+
         const transactionPromises: Promise<void>[] = [];
 
         Object.entries(accountsRes.data.banks || {}).forEach(([bankCode, bankData]) => {
@@ -59,7 +71,13 @@ export default function Payments() {
               )
                 .then((response) => {
                   const txs = response.data.transactions || [];
-                  allTransactions.push(...txs);
+                  // Добавляем название банка к каждой транзакции
+                  const txsWithBank = txs.map((tx: BankTransaction) => ({
+                    ...tx,
+                    bankName: bankNames[bankCode] || bankCode,
+                    bankCode: bankCode,
+                  }));
+                  allTransactions.push(...txsWithBank);
                 })
                 .catch((err) => {
                   console.error(`Error fetching transactions for account ${accountId}:`, err);
@@ -74,8 +92,8 @@ export default function Payments() {
 
         // Sort by date (newest first)
         allTransactions.sort((a, b) => {
-          const dateA = new Date(a.bookingDateTime || a.valueDateTime || 0).getTime();
-          const dateB = new Date(b.bookingDateTime || b.valueDateTime || 0).getTime();
+          const dateA = new Date(a.booking_date || a.bookingDateTime || a.value_date || a.valueDateTime || 0).getTime();
+          const dateB = new Date(b.booking_date || b.bookingDateTime || b.value_date || b.valueDateTime || 0).getTime();
           return dateB - dateA;
         });
 
@@ -94,8 +112,9 @@ export default function Payments() {
 
   const filteredTransactions = transactions.filter((tx) => {
     if (filter === "all") return true;
-    if (filter === "income") return tx.creditDebitIndicator === "Credit";
-    if (filter === "expense") return tx.creditDebitIndicator === "Debit";
+    const indicator = tx.transaction_type || tx.creditDebitIndicator;
+    if (filter === "income") return indicator === "Credit";
+    if (filter === "expense") return indicator === "Debit";
     return true;
   });
 
@@ -108,8 +127,10 @@ export default function Payments() {
     });
   };
 
-  const formatAmount = (amount: string) => {
-    return parseFloat(amount).toLocaleString("ru-RU", {
+  const formatAmount = (amount: number | string | undefined) => {
+    if (amount === undefined || amount === null) return "0.00";
+    const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
+    return numAmount.toLocaleString("ru-RU", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
@@ -184,52 +205,59 @@ export default function Payments() {
                     <TableRow>
                       <TableHead>Дата</TableHead>
                       <TableHead>Описание</TableHead>
-                      <TableHead>Контрагент</TableHead>
+                      <TableHead>Банк</TableHead>
                       <TableHead>Тип</TableHead>
                       <TableHead>Сумма</TableHead>
                       <TableHead>Статус</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTransactions.map((tx) => (
-                      <TableRow key={tx.transactionId || `${tx.bookingDateTime}-${tx.amount.amount}`}>
-                        <TableCell>{formatDate(tx.bookingDateTime || tx.valueDateTime)}</TableCell>
-                        <TableCell className={styles.description}>
-                          {tx.transactionInformation ||
-                            tx.remittanceInformation?.unstructured ||
-                            "Без описания"}
-                        </TableCell>
-                        <TableCell>
-                          {tx.creditDebitIndicator === "Credit"
-                            ? tx.creditorName || "—"
-                            : tx.debtorName || "—"}
-                        </TableCell>
-                        <TableCell>
-                          {tx.creditDebitIndicator === "Credit" ? (
-                            <div className={styles.typeIncome}>
-                              <ArrowUpCircle size={16} />
-                              <span>Доход</span>
-                            </div>
-                          ) : (
-                            <div className={styles.typeExpense}>
-                              <ArrowDownCircle size={16} />
-                              <span>Расход</span>
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell
-                          className={
-                            tx.creditDebitIndicator === "Credit" ? styles.amountIncome : styles.amountExpense
-                          }
-                        >
-                          {tx.creditDebitIndicator === "Credit" ? "+" : "-"}₽
-                          {formatAmount(tx.amount.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <span className={styles.status}>{tx.status}</span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {filteredTransactions.map((tx: any) => {
+                      const indicator = tx.transaction_type || tx.creditDebitIndicator;
+                      const isCredit = indicator === "Credit";
+                      const txAmount = tx.amount || 0;
+                      const txDate = tx.booking_date || tx.bookingDateTime || tx.value_date || tx.valueDateTime;
+                      const txDescription = 
+                        tx.transactionInformation ||
+                        (typeof tx.remittance_information === "string" ? tx.remittance_information :
+                         (tx.remittanceInformation && typeof tx.remittanceInformation === "object" ? tx.remittanceInformation.unstructured :
+                          typeof tx.remittanceInformation === "string" ? tx.remittanceInformation : null)) ||
+                        "Без описания";
+                      // Используем название банка вместо контрагента
+                      const bankName = tx.bankName || (tx.bankCode ? (bankNames[tx.bankCode] || tx.bankCode) : "—");
+                      const txId = tx.transaction_id || tx.transactionId || `${txDate}-${txAmount}`;
+                      
+                      return (
+                        <TableRow key={txId}>
+                          <TableCell>{formatDate(txDate)}</TableCell>
+                          <TableCell className={styles.description}>
+                            {txDescription}
+                          </TableCell>
+                          <TableCell>{bankName}</TableCell>
+                          <TableCell>
+                            {isCredit ? (
+                              <div className={styles.typeIncome}>
+                                <ArrowUpCircle size={16} />
+                                <span>Доход</span>
+                              </div>
+                            ) : (
+                              <div className={styles.typeExpense}>
+                                <ArrowDownCircle size={16} />
+                                <span>Расход</span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell
+                            className={isCredit ? styles.amountIncome : styles.amountExpense}
+                          >
+                            {isCredit ? "+" : "-"}₽{formatAmount(txAmount)}
+                          </TableCell>
+                          <TableCell>
+                            <span className={styles.status}>{tx.status || "Booked"}</span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

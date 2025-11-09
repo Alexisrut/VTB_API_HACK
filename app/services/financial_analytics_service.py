@@ -11,8 +11,9 @@ from sqlalchemy.orm import selectinload
 
 from app.models import (
     BankAccount, BankTransaction, FinancialHealthMetrics,
-    AccountsReceivable, User
+    AccountsReceivable, User, BankUser, BankConsent
 )
+from app.services.universal_bank_service import universal_bank_service
 
 logger = logging.getLogger(__name__)
 
@@ -163,19 +164,21 @@ class FinancialAnalyticsService:
                 if acc.is_active
             )
             
-            # Доходы и расходы за последние 30 дней
+            # Доходы и расходы за последние 30 дней из банков напрямую
             period_end = datetime.utcnow()
             period_start = period_end - timedelta(days=30)
             
-            transactions = await self._get_transactions_in_period(
+            # Получаем транзакции из всех банков напрямую через API
+            all_transactions = await self._get_transactions_from_banks(
                 db=db,
                 user_id=user_id,
                 period_start=period_start,
                 period_end=period_end
             )
             
-            revenue_30d = self._calculate_revenue(transactions)
-            expenses_30d = self._calculate_expenses(transactions)
+            total_revenue = self._calculate_revenue_from_bank_transactions(all_transactions)
+            total_expenses = self._calculate_expenses_from_bank_transactions(all_transactions)
+            net_income = total_revenue - total_expenses
             
             # Дебиторская задолженность
             ar_data = await self._get_ar_data(db=db, user_id=user_id)
@@ -187,9 +190,9 @@ class FinancialAnalyticsService:
                 "success": True,
                 "summary": {
                     "total_balance": float(total_balance),
-                    "revenue_30d": float(revenue_30d),
-                    "expenses_30d": float(expenses_30d),
-                    "net_income_30d": float(revenue_30d - expenses_30d),
+                    "total_revenue": float(total_revenue),
+                    "total_expenses": float(total_expenses),
+                    "net_income": float(net_income),
                     "total_ar": float(ar_data["total"]),
                     "overdue_ar": float(ar_data["overdue"]),
                     "health_score": latest_metrics.get("health_score"),
@@ -273,7 +276,7 @@ class FinancialAnalyticsService:
         }
     
     def _calculate_revenue(self, transactions: List) -> Decimal:
-        """Рассчитать доходы"""
+        """Рассчитать доходы из транзакций БД"""
         return sum(
             tx.amount 
             for tx in transactions 
@@ -281,12 +284,142 @@ class FinancialAnalyticsService:
         )
     
     def _calculate_expenses(self, transactions: List) -> Decimal:
-        """Рассчитать расходы"""
+        """Рассчитать расходы из транзакций БД"""
         return sum(
             tx.amount 
             for tx in transactions 
             if tx.category == "expense" or tx.transaction_type == "debit"
         )
+    
+    def _calculate_revenue_from_bank_transactions(self, transactions: List[Dict]) -> Decimal:
+        """Рассчитать доходы из транзакций банков"""
+        total = Decimal(0)
+        for tx in transactions:
+            # Проверяем тип транзакции (Credit = доход)
+            transaction_type = tx.get("transaction_type") or tx.get("creditDebitIndicator", "").lower()
+            if transaction_type.lower() == "credit":
+                amount = tx.get("amount")
+                if amount:
+                    if isinstance(amount, (int, float)):
+                        total += Decimal(str(amount))
+                    elif isinstance(amount, str):
+                        try:
+                            total += Decimal(amount)
+                        except:
+                            pass
+        return total
+    
+    def _calculate_expenses_from_bank_transactions(self, transactions: List[Dict]) -> Decimal:
+        """Рассчитать расходы из транзакций банков"""
+        total = Decimal(0)
+        for tx in transactions:
+            # Проверяем тип транзакции (Debit = расход)
+            transaction_type = tx.get("transaction_type") or tx.get("creditDebitIndicator", "").lower()
+            if transaction_type.lower() == "debit":
+                amount = tx.get("amount")
+                if amount:
+                    if isinstance(amount, (int, float)):
+                        total += Decimal(str(abs(amount)))  # Берем абсолютное значение
+                    elif isinstance(amount, str):
+                        try:
+                            total += Decimal(str(abs(float(amount))))
+                        except:
+                            pass
+        return total
+    
+    async def _get_transactions_from_banks(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        period_start: datetime,
+        period_end: datetime
+    ) -> List[Dict]:
+        """Получить транзакции из всех банков напрямую через API"""
+        all_transactions = []
+        
+        try:
+            # Получаем все активные счета пользователя
+            accounts = await self._get_user_accounts(db=db, user_id=user_id)
+            
+            # Группируем счета по банкам
+            accounts_by_bank = {}
+            for account in accounts:
+                if account.is_active:
+                    bank_code = account.bank_code
+                    if bank_code not in accounts_by_bank:
+                        accounts_by_bank[bank_code] = []
+                    accounts_by_bank[bank_code].append(account)
+            
+            # Получаем транзакции из каждого банка
+            for bank_code, bank_accounts in accounts_by_bank.items():
+                try:
+                    # Получаем bank_user_id и consent_id
+                    bank_user_stmt = select(BankUser).where(
+                        and_(
+                            BankUser.user_id == user_id,
+                            BankUser.bank_code == bank_code
+                        )
+                    )
+                    bank_user_result = await db.execute(bank_user_stmt)
+                    bank_user = bank_user_result.scalar_one_or_none()
+                    
+                    if not bank_user:
+                        logger.warning(f"No bank_user_id for user {user_id} and bank {bank_code}")
+                        continue
+                    
+                    # Получаем активное согласие
+                    consent_stmt = select(BankConsent).where(
+                        and_(
+                            BankConsent.user_id == user_id,
+                            BankConsent.bank_code == bank_code,
+                            BankConsent.status == "approved"
+                        )
+                    ).order_by(BankConsent.created_at.desc())
+                    consent_result = await db.execute(consent_stmt)
+                    consent = consent_result.scalar_one_or_none()
+                    
+                    if not consent:
+                        logger.warning(f"No active consent for user {user_id} and bank {bank_code}")
+                        continue
+                    
+                    # Получаем токен банка
+                    access_token = await universal_bank_service.get_bank_access_token(bank_code)
+                    if not access_token:
+                        logger.warning(f"Failed to get access token for bank {bank_code}")
+                        continue
+                    
+                    # Получаем транзакции для каждого счета
+                    for account in bank_accounts:
+                        try:
+                            # Форматируем даты в ISO 8601
+                            from_date = period_start.strftime("%Y-%m-%dT%H:%M:%SZ")
+                            to_date = period_end.strftime("%Y-%m-%dT%H:%M:%SZ")
+                            
+                            transactions_data = await universal_bank_service.get_account_transactions(
+                                bank_code=bank_code,
+                                access_token=access_token,
+                                account_id=account.account_id,
+                                consent_id=consent.consent_id,
+                                from_booking_date_time=from_date,
+                                to_booking_date_time=to_date
+                            )
+                            
+                            if transactions_data and "transactions" in transactions_data:
+                                transactions = transactions_data["transactions"]
+                                if isinstance(transactions, list):
+                                    all_transactions.extend(transactions)
+                        except Exception as e:
+                            logger.error(f"Error fetching transactions for account {account.account_id} from {bank_code}: {e}")
+                            continue
+                            
+                except Exception as e:
+                    logger.error(f"Error fetching transactions from bank {bank_code}: {e}")
+                    continue
+            
+        except Exception as e:
+            logger.error(f"Error getting transactions from banks: {e}")
+        
+        return all_transactions
     
     def _calculate_total_assets(self, accounts: List) -> Decimal:
         """Рассчитать общие активы (балансы счетов)"""

@@ -205,21 +205,35 @@ export interface BankAccountsResponse {
 }
 
 export interface BankTransaction {
-  transactionId: string;
+  transaction_id?: string;
+  transactionId?: string;
   transactionReference?: string;
-  amount: {
-    amount: string;
-    currency: string;
-  };
-  creditDebitIndicator: string;
-  status: string;
+  account_id: string;
+  amount?: number;
+  currency?: string;
+  transaction_type?: string;
+  creditDebitIndicator?: string;
+  status?: string;
+  booking_date?: string;
   bookingDateTime?: string;
+  value_date?: string;
   valueDateTime?: string;
+  remittance_information?: string;
   transactionInformation?: string;
-  creditorName?: string;
-  debtorName?: string;
   remittanceInformation?: {
     unstructured?: string;
+  } | string;
+  creditor_name?: string;
+  creditorName?: string;
+  creditor_account?: string;
+  creditorAccount?: {
+    identification?: string;
+  };
+  debtor_name?: string;
+  debtorName?: string;
+  debtor_account?: string;
+  debtorAccount?: {
+    identification?: string;
   };
 }
 
@@ -280,7 +294,12 @@ export const getAccountBalances = (
   const params = new URLSearchParams({
     bank_code: bankCode,
   });
-  if (consentId) params.append("consent_id", consentId);
+  
+  // Используем согласие из куки, если не указано явно
+  const effectiveConsentId = getCookie(`consent_${bankCode}`);
+  if (effectiveConsentId) {
+    params.append("consent_id", effectiveConsentId);
+  }
   
   return api.get<BankBalancesResponse>(
     `/api/v1/banks/accounts/${accountId}/balances?${params.toString()}`
@@ -357,7 +376,13 @@ export const getAccountTransactions = (
   const params = new URLSearchParams({
     bank_code: bankCode,
   });
-  if (consentId) params.append("consent_id", consentId);
+  
+  // Используем согласие из куки, если не указано явно
+  const effectiveConsentId = getCookie(`consent_${bankCode}`);
+  if (effectiveConsentId) {
+    params.append("consent_id", effectiveConsentId);
+  }
+  
   if (fromDate) params.append("from_date", fromDate);
   if (toDate) params.append("to_date", toDate);
   
@@ -400,6 +425,52 @@ export const saveBankUser = (bankUser: BankUserCreate) => {
 // Удалить bank_user_id
 export const deleteBankUser = (bankCode: string) => {
   return api.delete(`/users/me/bank-users/${bankCode}`);
+};
+
+// ==================== CONSENTS API ====================
+
+export interface BankConsent {
+  consent_id: string;
+  bank_code: string;
+  status: string;
+  auto_approved: boolean;
+  expires_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateConsentResponse {
+  success: boolean;
+  consent_id: string;
+  status: string;
+  auto_approved: boolean;
+  permissions: string[];
+  expires_at: string;
+  message: string;
+}
+
+export interface ConsentsResponse {
+  success: boolean;
+  consents: BankConsent[];
+}
+
+// Создать согласие для банка
+export const createAccountConsent = (bankCode: string, permissions?: string[]) => {
+  const params = new URLSearchParams({
+    bank_code: bankCode,
+  });
+  if (permissions && permissions.length > 0) {
+    permissions.forEach(perm => params.append("permissions", perm));
+  }
+  
+  return api.post<CreateConsentResponse>(
+    `/api/v1/banks/account-consents?${params.toString()}`
+  );
+};
+
+// Получить список согласий пользователя
+export const getUserConsents = () => {
+  return api.get<ConsentsResponse>("/api/v1/banks/consents");
 };
 
 // ==================== ANALYTICS API ====================

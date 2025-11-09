@@ -164,13 +164,19 @@ class DataAggregationService:
             from_date = to_date - timedelta(days=days_back)
             
             # Получаем транзакции из банка
+            # Преобразуем даты в формат ISO 8601
+            from_booking_date_time = from_date.strftime("%Y-%m-%dT00:00:00Z")
+            to_booking_date_time = to_date.strftime("%Y-%m-%dT23:59:59Z")
+            
             transactions_data = await self.bank_service.get_account_transactions(
                 bank_code=bank_code,
                 access_token=access_token,
                 account_id=bank_account_id,
                 consent_id=consent_id,
-                from_date=from_date.strftime("%Y-%m-%d"),
-                to_date=to_date.strftime("%Y-%m-%d")
+                from_booking_date_time=from_booking_date_time,
+                to_booking_date_time=to_booking_date_time,
+                page=None,  # Получаем все транзакции без пагинации при синхронизации
+                limit=None
             )
             
             if not transactions_data:
