@@ -32,21 +32,62 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
-// для автоматического добавления Access Token
+// Логирование запросов
 api.interceptors.request.use((config) => {
   const token = getCookie("access_token");
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  // Логируем запросы (только в development)
+  if (import.meta.env.DEV) {
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, {
+      params: config.params,
+      data: config.data,
+    });
+  }
+  
   return config;
 });
 
-// для автоматического обновления токена
+// Логирование ответов
+api.interceptors.response.use(
+  (response) => {
+    // Логируем успешные ответы (только в development)
+    if (import.meta.env.DEV) {
+      console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
+        status: response.status,
+        data: response.data,
+      });
+    }
+    return response;
+  },
+  (error) => {
+    // Логируем ошибки
+    if (error.response) {
+      console.error(`[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers,
+      });
+    } else if (error.request) {
+      console.error(`[API Error] No response received`, error.request);
+    } else {
+      console.error(`[API Error]`, error.message);
+    }
+    return Promise.reject(error);
+  }
+);
+
+// для автоматического обновления токена (объединено с логированием выше)
 api.interceptors.response.use(
   (response: any) => response,
   async (error: { config: any; response: { status: number; }; }) => {
     const originalRequest = error.config;
-    if (error.response.status === 401 && !originalRequest._retry) {
+    
+    // Логируем ошибки (уже делается выше, но добавляем для refresh token)
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      console.log("[API] Token expired, attempting refresh...");
       originalRequest._retry = true;
       const refreshToken = getCookie("refresh_token");
 
@@ -60,9 +101,10 @@ api.interceptors.response.use(
           setCookie("refresh_token", data.refresh_token, 7); // 7 дней
           axios.defaults.headers.common["Authorization"] = `Bearer ${data.access_token}`;
           originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+          console.log("[API] Token refreshed successfully");
           return api(originalRequest);
         } catch (refreshError) {
-          console.error("Refresh token failed", refreshError);
+          console.error("[API] Refresh token failed", refreshError);
           // TODO: Очистить куки и сделать редирект на логин
           return Promise.reject(refreshError);
         }
@@ -100,4 +142,134 @@ export const startBankOAuth = () => {
 export const logout = () => {
   // Очистка токенов происходит на клиенте через eraseCookie
   // Можно добавить вызов API для инвалидации токена на сервере, если нужно
+};
+
+
+export interface BankAccount {
+  account_id: string;
+  account_type?: string;
+  currency?: string;
+  nickname?: string;
+  account?: {
+    schemeName?: string;
+    identification?: string;
+    name?: string;
+    secondaryIdentification?: string;
+  };
+  balances?: Array<{
+    balanceAmount: {
+      amount: string;
+      currency: string;
+    };
+    balanceType: string;
+    creditDebitIndicator: string;
+  }>;
+}
+
+export interface BankAccountsResponse {
+  success: boolean;
+  banks: {
+    [bankCode: string]: {
+      success: boolean;
+      accounts: BankAccount[];
+      consent_id?: string;
+      count: number;
+      error?: string;
+    };
+  };
+  total_accounts: number;
+}
+
+export interface BankTransaction {
+  transactionId: string;
+  transactionReference?: string;
+  amount: {
+    amount: string;
+    currency: string;
+  };
+  creditDebitIndicator: string;
+  status: string;
+  bookingDateTime?: string;
+  valueDateTime?: string;
+  transactionInformation?: string;
+  creditorName?: string;
+  debtorName?: string;
+  remittanceInformation?: {
+    unstructured?: string;
+  };
+}
+
+export interface BankTransactionsResponse {
+  success: boolean;
+  account_id: string;
+  transactions: BankTransaction[];
+  total_count: number;
+}
+
+// Получить все счета из всех банков
+export const getAllBankAccounts = () => {
+  return api.get<BankAccountsResponse>("/api/v1/banks/accounts/all");
+};
+
+// Получить счета из конкретного банка
+export const getBankAccounts = (bankCode: string) => {
+  return api.get<{ success: boolean; accounts: BankAccount[]; consent_id?: string; auto_approved?: boolean }>(
+    `/api/v1/banks/accounts?bank_code=${bankCode}`
+  );
+};
+
+
+export const getAccountTransactions = (
+  accountId: string,
+  bankCode: string,
+  consentId?: string,
+  fromDate?: string,
+  toDate?: string
+) => {
+  const params = new URLSearchParams({
+    bank_code: bankCode,
+  });
+  if (consentId) params.append("consent_id", consentId);
+  if (fromDate) params.append("from_date", fromDate);
+  if (toDate) params.append("to_date", toDate);
+  
+  return api.get<BankTransactionsResponse>(
+    `/api/v1/banks/accounts/${accountId}/transactions?${params.toString()}`
+  );
+};
+
+
+
+export interface BankUser {
+  id: number;
+  user_id: number;
+  bank_code: string;
+  bank_user_id: string;
+  consent_id?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BankUsersResponse {
+  bank_users: Record<string, string>;
+}
+
+export interface BankUserCreate {
+  bank_code: string;
+  bank_user_id: string;
+}
+
+// Получить все bank_user_id пользователя
+export const getUserBankUsers = () => {
+  return api.get<BankUsersResponse>("/users/me/bank-users");
+};
+
+// Сохранить или обновить bank_user_id
+export const saveBankUser = (bankUser: BankUserCreate) => {
+  return api.post<BankUser>("/users/me/bank-users", bankUser);
+};
+
+// Удалить bank_user_id
+export const deleteBankUser = (bankCode: string) => {
+  return api.delete(`/users/me/bank-users/${bankCode}`);
 };

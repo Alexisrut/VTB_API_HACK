@@ -124,3 +124,100 @@
   color: $danger;
 }
 
+.consentsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid $border;
+}
+
+.sectionTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: $foreground;
+  margin: 0;
+}
+
+.sectionDescription {
+  font-size: 0.875rem;
+  color: $muted-foreground;
+  margin: 0;
+}
+
+.consentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.consentItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  background: $secondary;
+  border-radius: $radius-md;
+  border: 1px solid $border;
+  transition: $transition-smooth;
+
+  &:hover {
+    border-color: $primary;
+    box-shadow: $shadow-soft;
+  }
+}
+
+.consentHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.consentIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-sm;
+  background: $gradient-primary;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $foreground;
+  flex-shrink: 0;
+}
+
+.consentLabel {
+  font-size: 1rem;
+  font-weight: 600;
+  color: $foreground;
+}
+
+.consentInputGroup {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.consentInput {
+  flex: 1;
+}
+
+.consentActions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.saveButton,
+.deleteButton {
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.consentSaved {
+  font-size: 0.875rem;
+  color: $muted-foreground;
+  padding-top: 0.5rem;
+  border-top: 1px solid $border;
+}
+

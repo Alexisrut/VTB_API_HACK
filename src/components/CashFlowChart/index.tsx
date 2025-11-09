@@ -39,7 +39,7 @@ const getHslColor = (h: string, s: string, l: string) => `hsl(${h}, ${s}, ${l})`
 export default function CashFlowChart() {
   const primaryHslString = getHslColor(primaryHslParts[0], primaryHslParts[1], primaryHslParts[2]);
   const accentHslString = getHslColor(accentHslParts[0], accentHslParts[1], accentHslParts[2]);
-  const RefLine: any = ReferenceLine;
+  const RefLine = ReferenceLine;
   
   return (
     <Card className={styles.chartCard}>
