@@ -42,6 +42,62 @@ export default function CashFlow() {
       return;
     }
 
+    // Используем захардкоженные данные для демонстрации
+    const today = new Date();
+    const mockPredictions = [
+      {
+        prediction_date: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        predicted_balance: 1250000,
+        predicted_inflow: 850000,
+        predicted_outflow: 620000,
+        confidence: 0.85,
+      },
+      {
+        prediction_date: new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+        predicted_balance: 980000,
+        predicted_inflow: 720000,
+        predicted_outflow: 990000,
+        confidence: 0.78,
+      },
+      {
+        prediction_date: new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString(),
+        predicted_balance: -120000,
+        predicted_inflow: 450000,
+        predicted_outflow: 1550000,
+        confidence: 0.72,
+      },
+      {
+        prediction_date: new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000).toISOString(),
+        predicted_balance: 340000,
+        predicted_inflow: 1200000,
+        predicted_outflow: 740000,
+        confidence: 0.68,
+      },
+    ];
+
+    const mockGaps = [
+      {
+        date: new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString(),
+        gap_amount: -120000,
+        probability: 72.5,
+        severity: "Средняя",
+      },
+      {
+        date: new Date(today.getTime() + 19 * 24 * 60 * 60 * 1000).toISOString(),
+        gap_amount: -45000,
+        probability: 58.3,
+        severity: "Низкая",
+      },
+    ];
+
+    // Имитируем задержку загрузки
+    setTimeout(() => {
+      setPredictions(mockPredictions);
+      setGaps(mockGaps);
+      setIsLoading(false);
+    }, 500);
+
+    /* Закомментирован реальный API вызов
     const fetchData = async () => {
       try {
         setIsLoading(true);
@@ -69,6 +125,7 @@ export default function CashFlow() {
     };
 
     fetchData();
+    */
   }, [isAuthenticated]);
 
   const primaryHslString = getHslColor(primaryHslParts[0], primaryHslParts[1], primaryHslParts[2]);

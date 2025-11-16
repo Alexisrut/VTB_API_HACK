@@ -20,6 +20,31 @@ export default function Health() {
       return;
     }
 
+    // Используем захардкоженные данные для демонстрации
+    const mockMetrics = {
+      health_score: 78,
+      health_status: "good",
+      total_revenue: 5420000,
+      total_expenses: 3890000,
+      net_income: 1530000,
+      total_ar: 2340000,
+      overdue_ar: 340000,
+      current_ratio: 2.45,
+      quick_ratio: 1.87,
+      operating_cash_flow: 1680000,
+      cash_flow_trend: "Положительный",
+      total_assets: 8750000,
+      total_liabilities: 3200000,
+      net_worth: 5550000,
+    };
+
+    // Имитируем задержку загрузки
+    setTimeout(() => {
+      setMetrics(mockMetrics);
+      setIsLoading(false);
+    }, 500);
+
+    /* Закомментирован реальный API вызов
     const fetchMetrics = async () => {
       try {
         setIsLoading(true);
@@ -41,6 +66,7 @@ export default function Health() {
     };
 
     fetchMetrics();
+    */
   }, [isAuthenticated]);
 
   const getHealthStatusColor = (status?: string) => {

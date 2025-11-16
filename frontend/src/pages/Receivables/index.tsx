@@ -24,6 +24,197 @@ export default function Receivables() {
       return;
     }
 
+    // Используем захардкоженные данные для демонстрации
+    const mockSummary = {
+      total_ar: 2340000,
+      overdue_ar: 340000,
+      overdue_count: 3,
+      pending_count: 8,
+      paid_count: 12,
+    };
+
+    const allMockInvoices: Invoice[] = [
+      {
+        id: "inv-001",
+        invoice_number: "INV-2024-001",
+        counterparty_name: "ООО \"Альфа\"",
+        invoice_date: "2024-11-01",
+        due_date: "2024-11-15",
+        amount: 450000,
+        paid_amount: 450000,
+        status: "paid",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-002",
+        invoice_number: "INV-2024-002",
+        counterparty_name: "ООО \"Бета\"",
+        invoice_date: "2024-11-03",
+        due_date: "2024-11-17",
+        amount: 320000,
+        paid_amount: 320000,
+        status: "paid",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-003",
+        invoice_number: "INV-2024-003",
+        counterparty_name: "ООО \"Гамма\"",
+        invoice_date: "2024-11-05",
+        due_date: "2024-11-19",
+        amount: 180000,
+        paid_amount: 0,
+        status: "pending",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-004",
+        invoice_number: "INV-2024-004",
+        counterparty_name: "ООО \"Дельта\"",
+        invoice_date: "2024-11-06",
+        due_date: "2024-11-20",
+        amount: 275000,
+        paid_amount: 275000,
+        status: "paid",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-005",
+        invoice_number: "INV-2024-005",
+        counterparty_name: "ООО \"Эпсилон\"",
+        invoice_date: "2024-11-07",
+        due_date: "2024-11-21",
+        amount: 95000,
+        paid_amount: 0,
+        status: "pending",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-006",
+        invoice_number: "INV-2024-006",
+        counterparty_name: "ООО \"Зета\"",
+        invoice_date: "2024-11-08",
+        due_date: "2024-11-22",
+        amount: 520000,
+        paid_amount: 520000,
+        status: "paid",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-007",
+        invoice_number: "INV-2024-007",
+        counterparty_name: "ООО \"Эта\"",
+        invoice_date: "2024-10-25",
+        due_date: "2024-11-08",
+        amount: 68000,
+        paid_amount: 0,
+        status: "overdue",
+        days_overdue: 8,
+      },
+      {
+        id: "inv-008",
+        invoice_number: "INV-2024-008",
+        counterparty_name: "ООО \"Тета\"",
+        invoice_date: "2024-10-28",
+        due_date: "2024-11-11",
+        amount: 142000,
+        paid_amount: 0,
+        status: "overdue",
+        days_overdue: 5,
+      },
+      {
+        id: "inv-009",
+        invoice_number: "INV-2024-009",
+        counterparty_name: "ООО \"Йота\"",
+        invoice_date: "2024-10-30",
+        due_date: "2024-11-13",
+        amount: 130000,
+        paid_amount: 0,
+        status: "overdue",
+        days_overdue: 3,
+      },
+      {
+        id: "inv-010",
+        invoice_number: "INV-2024-010",
+        counterparty_name: "ООО \"Каппа\"",
+        invoice_date: "2024-11-10",
+        due_date: "2024-11-24",
+        amount: 385000,
+        paid_amount: 0,
+        status: "pending",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-011",
+        invoice_number: "INV-2024-011",
+        counterparty_name: "ООО \"Лямбда\"",
+        invoice_date: "2024-11-11",
+        due_date: "2024-11-25",
+        amount: 225000,
+        paid_amount: 0,
+        status: "pending",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-012",
+        invoice_number: "INV-2024-012",
+        counterparty_name: "ООО \"Мю\"",
+        invoice_date: "2024-11-12",
+        due_date: "2024-11-26",
+        amount: 198000,
+        paid_amount: 0,
+        status: "pending",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-013",
+        invoice_number: "INV-2024-013",
+        counterparty_name: "ООО \"Ню\"",
+        invoice_date: "2024-10-20",
+        due_date: "2024-11-03",
+        amount: 410000,
+        paid_amount: 410000,
+        status: "paid",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-014",
+        invoice_number: "INV-2024-014",
+        counterparty_name: "ООО \"Кси\"",
+        invoice_date: "2024-11-13",
+        due_date: "2024-11-27",
+        amount: 165000,
+        paid_amount: 0,
+        status: "pending",
+        days_overdue: 0,
+      },
+      {
+        id: "inv-015",
+        invoice_number: "INV-2024-015",
+        counterparty_name: "ООО \"Омикрон\"",
+        invoice_date: "2024-11-14",
+        due_date: "2024-11-28",
+        amount: 290000,
+        paid_amount: 0,
+        status: "pending",
+        days_overdue: 0,
+      },
+    ];
+
+    setTimeout(() => {
+      setSummary(mockSummary);
+      
+      // Фильтруем счета по статусу
+      let filteredInvoices = allMockInvoices;
+      if (statusFilter) {
+        filteredInvoices = allMockInvoices.filter(inv => inv.status === statusFilter);
+      }
+      
+      setInvoices(filteredInvoices);
+      setIsLoading(false);
+    }, 400);
+
+    /* Закомментирован реальный API вызов
     const fetchData = async () => {
       try {
         setIsLoading(true);
@@ -51,6 +242,7 @@ export default function Receivables() {
     };
 
     fetchData();
+    */
   }, [isAuthenticated, statusFilter]);
 
   const getStatusBadge = (status: string) => {

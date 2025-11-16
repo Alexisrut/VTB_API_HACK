@@ -65,6 +65,65 @@ export default function ReceivablesTable() {
       return;
     }
 
+    // Используем захардкоженные данные для демонстрации
+    const mockReceivables: Receivable[] = [
+      {
+        id: "rec-1",
+        counterparty: "ВТБ",
+        amount: 450000,
+        dueDate: "15.11",
+        status: "received",
+      },
+      {
+        id: "rec-2",
+        counterparty: "Сбербанк",
+        amount: 320000,
+        dueDate: "14.11",
+        status: "received",
+      },
+      {
+        id: "rec-3",
+        counterparty: "Альфа-Банк",
+        amount: 180000,
+        dueDate: "13.11",
+        status: "pending",
+      },
+      {
+        id: "rec-4",
+        counterparty: "ВТБ",
+        amount: 275000,
+        dueDate: "12.11",
+        status: "received",
+      },
+      {
+        id: "rec-5",
+        counterparty: "Сбербанк",
+        amount: 95000,
+        dueDate: "11.11",
+        status: "pending",
+      },
+      {
+        id: "rec-6",
+        counterparty: "Альфа-Банк",
+        amount: 520000,
+        dueDate: "10.11",
+        status: "received",
+      },
+      {
+        id: "rec-7",
+        counterparty: "ВТБ",
+        amount: 68000,
+        dueDate: "09.11",
+        status: "overdue",
+      },
+    ];
+
+    setTimeout(() => {
+      setReceivables(mockReceivables);
+      setIsLoading(false);
+    }, 500);
+
+    /* Закомментирован реальный API вызов
     const fetchReceivables = async () => {
       try {
         setIsLoading(true);
@@ -211,6 +270,7 @@ export default function ReceivablesTable() {
     };
 
     fetchReceivables();
+    */
   }, [isAuthenticated]);
 
   const getStatusBadge = (status: string) => {

@@ -26,6 +26,22 @@ export default function Index() {
       return;
     }
 
+    // Используем захардкоженные данные для демонстрации
+    const mockDashboardData = {
+      total_balance: 2450000,
+      accounts_count: 3,
+      total_revenue: 5420000,
+      total_ar: 2340000,
+      overdue_ar: 340000,
+      net_income: 1530000,
+    };
+
+    setTimeout(() => {
+      setDashboardData(mockDashboardData);
+      setIsLoadingDashboard(false);
+    }, 300);
+
+    /* Закомментирован реальный API вызов
     const fetchDashboardData = async () => {
       try {
         setIsLoadingDashboard(true);
@@ -42,6 +58,7 @@ export default function Index() {
     };
 
     fetchDashboardData();
+    */
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -49,6 +66,13 @@ export default function Index() {
       return;
     }
 
+    // Используем захардкоженные данные для демонстрации
+    setTimeout(() => {
+      setAccountsCount(3);
+      setTotalBalance(2450000);
+    }, 400);
+
+    /* Закомментирован реальный API вызов
     const fetchBalances = async () => {
       try {
         console.log("[Dashboard] Fetching accounts and balances...");
@@ -110,6 +134,7 @@ export default function Index() {
     };
 
     fetchBalances();
+    */
   }, [isAuthenticated]);
 
   const handleUserClick = () => {

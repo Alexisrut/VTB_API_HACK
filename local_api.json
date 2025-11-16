@@ -1,0 +1,3220 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+      "title": "Multi-Banking MVP API",
+      "description": "MVP for multi-banking application for Solo Entrepreneurs with financial analytics, ML predictions, and AR management",
+      "version": "1.0.0"
+    },
+    "paths": {
+      "/auth/register": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Register",
+          "description": "Регистрация пользователя (без SMS верификации - пользователь активируется сразу)",
+          "operationId": "register_auth_register_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRegister"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/UserResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/auth/verify-sms": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Verify Sms",
+          "description": "Проверка SMS кода",
+          "operationId": "verify_sms_auth_verify_sms_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SMSVerificationConfirm"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/auth/login": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Login",
+          "description": "Вход в систему",
+          "operationId": "login_auth_login_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/TokenResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/auth/refresh": {
+        "post": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Refresh",
+          "description": "Обновление access токена",
+          "operationId": "refresh_auth_refresh_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefreshTokenRequest"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/TokenResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/auth/oauth/authorize/{bank_code}": {
+        "get": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Oauth Authorize",
+          "description": "Инициирование OAuth flow для входа через банк\n\nПроцесс:\n1. Генерируем OAuth state для безопасности\n2. Перенаправляем пользователя на страницу авторизации банка\n3. После авторизации банк перенаправит на /auth/oauth/callback",
+          "operationId": "oauth_authorize_auth_oauth_authorize__bank_code__get",
+          "parameters": [
+            {
+              "name": "bank_code",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Bank Code"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/auth/oauth/callback": {
+        "get": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Oauth Callback",
+          "description": "Callback от банка после авторизации пользователя\nНа этом этапе мы уже имеем:\n- Данные счетов пользователя\n- Согласие на доступ\n- Информацию о пользователе",
+          "operationId": "oauth_callback_auth_oauth_callback_get",
+          "parameters": [
+            {
+              "name": "code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Code"
+              }
+            },
+            {
+              "name": "state",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "State"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/auth/oauth/bank-bills": {
+        "get": {
+          "tags": [
+            "auth"
+          ],
+          "summary": "Get Oauth Bank Accounts",
+          "description": "Эндпоинт для получения банковских счетов пользователя через OAuth\nИспользует полный цикл получения данных от банка",
+          "operationId": "get_oauth_bank_accounts_auth_oauth_bank_bills_get",
+          "parameters": [
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка: vbank, abank, sbank",
+                "title": "Bank Code"
+              },
+              "description": "Код банка: vbank, abank, sbank"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/users/me": {
+        "get": {
+          "tags": [
+            "users"
+          ],
+          "summary": "Get Current User Info",
+          "description": "Получение информации о текущем пользователе",
+          "operationId": "get_current_user_info_users_me_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/UserResponse"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        },
+        "put": {
+          "tags": [
+            "users"
+          ],
+          "summary": "Update User Profile",
+          "description": "Обновление профиля пользователя",
+          "operationId": "update_user_profile_users_me_put",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Update Data"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/UserResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/users/logout": {
+        "post": {
+          "tags": [
+            "users"
+          ],
+          "summary": "Logout",
+          "description": "Выход из системы",
+          "operationId": "logout_users_logout_post",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/users/me/bank-users": {
+        "get": {
+          "tags": [
+            "users"
+          ],
+          "summary": "Get User Bank Users",
+          "description": "Получить все bank_user_id для текущего пользователя",
+          "operationId": "get_user_bank_users_users_me_bank_users_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        },
+        "post": {
+          "tags": [
+            "users"
+          ],
+          "summary": "Save Bank User",
+          "description": "Сохранить или обновить bank_user_id для банка",
+          "operationId": "save_bank_user_users_me_bank_users_post",
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankUserCreate"
+                }
+              }
+            },
+            "required": true
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/BankUserResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/users/me/bank-users/{bank_code}": {
+        "delete": {
+          "tags": [
+            "users"
+          ],
+          "summary": "Delete Bank User",
+          "description": "Удалить bank_user_id для банка",
+          "operationId": "delete_bank_user_users_me_bank_users__bank_code__delete",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "bank_code",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Bank Code"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/accounts": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Get User Accounts",
+          "description": "Получить список счетов пользователя из конкретного банка\n\n**Параметры:**\n- **bank_code**: Код банка ('vbank', 'abank', 'sbank')\n\n**Возвращает:**\n- Список счетов с балансами\n\n**Примечание:**\n- Использует bank_user_id из профиля пользователя, если он установлен\n- Если bank_user_id не установлен, вернет ошибку с инструкцией",
+          "operationId": "get_user_accounts_api_v1_banks_accounts_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка: vbank, abank, sbank",
+                "title": "Bank Code"
+              },
+              "description": "Код банка: vbank, abank, sbank"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/GetBankAccountsResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/accounts/all": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Get Accounts From All Banks",
+          "description": "Получить счета из всех банков или выбранных\n\n**Параметры:**\n- **banks**: Список кодов банков (если не указано - все банки)\n\n**Возвращает:**\n- Счета из каждого банка с флагами успешности\n\n**Примечание:**\n- Использует bank_user_id из профиля пользователя для каждого банка",
+          "operationId": "get_accounts_from_all_banks_api_v1_banks_accounts_all_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "banks",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Список банков (vbank,abank,sbank)",
+                "title": "Banks"
+              },
+              "description": "Список банков (vbank,abank,sbank)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/accounts/{account_id}": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Get Account Details",
+          "description": "Получить детальную информацию о конкретном счете\n\n**Параметры:**\n- **account_id**: ID счета\n- **bank_code**: Код банка\n- **consent_id**: ID согласия (опционально, если не указано - будет получен и проверен из БД)",
+          "operationId": "get_account_details_api_v1_banks_accounts__account_id__get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "account_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Account Id"
+              }
+            },
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка",
+                "title": "Bank Code"
+              },
+              "description": "Код банка"
+            },
+            {
+              "name": "consent_id",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ID согласия (если не указано, будет получен из БД)",
+                "title": "Consent Id"
+              },
+              "description": "ID согласия (если не указано, будет получен из БД)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/accounts/{account_id}/balances": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Get Account Balances",
+          "description": "Получить балансы счета\n\n**Параметры:**\n- **account_id**: ID счета\n- **bank_code**: Код банка\n- **consent_id**: ID согласия (опционально, если не указано - будет получен и проверен из БД)",
+          "operationId": "get_account_balances_api_v1_banks_accounts__account_id__balances_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "account_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Account Id"
+              }
+            },
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка",
+                "title": "Bank Code"
+              },
+              "description": "Код банка"
+            },
+            {
+              "name": "consent_id",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ID согласия (если не указано, будет получен из БД)",
+                "title": "Consent Id"
+              },
+              "description": "ID согласия (если не указано, будет получен из БД)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/accounts/{account_id}/transactions": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Get Account Transactions",
+          "description": "Получить транзакции по счету\n\n**Параметры:**\n- **account_id**: ID счета\n- **bank_code**: Код банка\n- **consent_id**: ID согласия (опционально, если не указано - будет получен из БД)\n- **from_date**: Дата начала (опционально)\n- **to_date**: Дата конца (опционально)",
+          "operationId": "get_account_transactions_api_v1_banks_accounts__account_id__transactions_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "account_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Account Id"
+              }
+            },
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка",
+                "title": "Bank Code"
+              },
+              "description": "Код банка"
+            },
+            {
+              "name": "consent_id",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ID согласия (если не указано, будет получен из БД)",
+                "title": "Consent Id"
+              },
+              "description": "ID согласия (если не указано, будет получен из БД)"
+            },
+            {
+              "name": "from_date",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Дата начала YYYY-MM-DD",
+                "title": "From Date"
+              },
+              "description": "Дата начала YYYY-MM-DD"
+            },
+            {
+              "name": "to_date",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Дата конца YYYY-MM-DD",
+                "title": "To Date"
+              },
+              "description": "Дата конца YYYY-MM-DD"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/GetBankTransactionsResponse"
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/consents/verify": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Verify User Consents",
+          "description": "Проверить валидность согласий для пользователя\n\n**Параметры:**\n- **bank_code**: Код банка (опционально, если не указано - проверяются все банки)\n\n**Возвращает:**\n- Статус согласий для каждого банка",
+          "operationId": "verify_user_consents_api_v1_banks_consents_verify_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Код банка (если не указано - проверяются все банки)",
+                "title": "Bank Code"
+              },
+              "description": "Код банка (если не указано - проверяются все банки)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/consents/{consent_id}": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Get Consent Details",
+          "description": "Получить детали согласия\n\n**Параметры:**\n- **consent_id**: ID согласия\n- **bank_code**: Код банка",
+          "operationId": "get_consent_details_api_v1_banks_consents__consent_id__get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "consent_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Consent Id"
+              }
+            },
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка",
+                "title": "Bank Code"
+              },
+              "description": "Код банка"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "delete": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Delete Consent",
+          "description": "Удалить согласие\n\n**Параметры:**\n- **consent_id**: ID согласия\n- **bank_code**: Код банка",
+          "operationId": "delete_consent_api_v1_banks_consents__consent_id__delete",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "consent_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Consent Id"
+              }
+            },
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка",
+                "title": "Bank Code"
+              },
+              "description": "Код банка"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/payments/consents": {
+        "post": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Create Payment Consent",
+          "description": "Создать согласие на платеж\n\n**Параметры:**\n- **bank_code**: Код банка\n- **payment_data**: Данные платежа",
+          "operationId": "create_payment_consent_api_v1_banks_payments_consents_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка",
+                "title": "Bank Code"
+              },
+              "description": "Код банка"
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Payment Data"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/payments": {
+        "post": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Initiate Payment",
+          "description": "Инициировать платеж\n\n**Параметры:**\n- **bank_code**: Код банка\n- **consent_id**: ID согласия на платеж\n- **payment_data**: Данные платежа",
+          "operationId": "initiate_payment_api_v1_banks_payments_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка",
+                "title": "Bank Code"
+              },
+              "description": "Код банка"
+            },
+            {
+              "name": "consent_id",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "ID согласия на платеж",
+                "title": "Consent Id"
+              },
+              "description": "ID согласия на платеж"
+            }
+          ],
+          "requestBody": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "title": "Payment Data"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/payments/{payment_id}": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Get Payment Status",
+          "description": "Получить статус платежа\n\n**Параметры:**\n- **payment_id**: ID платежа\n- **bank_code**: Код банка",
+          "operationId": "get_payment_status_api_v1_banks_payments__payment_id__get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "payment_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "title": "Payment Id"
+              }
+            },
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": true,
+              "schema": {
+                "type": "string",
+                "description": "Код банка",
+                "title": "Bank Code"
+              },
+              "description": "Код банка"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/banks/list": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "List Available Banks",
+          "description": "Получить список доступных банков",
+          "operationId": "list_available_banks_api_v1_banks_banks_list_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/banks/health": {
+        "get": {
+          "tags": [
+            "Open Banking API"
+          ],
+          "summary": "Health Check",
+          "description": "Проверка работоспособности API",
+          "operationId": "health_check_api_v1_banks_health_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/analytics/health-metrics": {
+        "get": {
+          "tags": [
+            "Financial Analytics"
+          ],
+          "summary": "Get Health Metrics",
+          "description": "Получить метрики финансового здоровья за период\n\n**Параметры:**\n- **period_start**: Начало периода (по умолчанию - 30 дней назад)\n- **period_end**: Конец периода (по умолчанию - сейчас)\n\n**Возвращает:**\n- Метрики финансового здоровья",
+          "operationId": "get_health_metrics_api_v1_analytics_health_metrics_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "period_start",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Начало периода (YYYY-MM-DD)",
+                "title": "Period Start"
+              },
+              "description": "Начало периода (YYYY-MM-DD)"
+            },
+            {
+              "name": "period_end",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Конец периода (YYYY-MM-DD)",
+                "title": "Period End"
+              },
+              "description": "Конец периода (YYYY-MM-DD)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/analytics/dashboard": {
+        "get": {
+          "tags": [
+            "Financial Analytics"
+          ],
+          "summary": "Get Dashboard Summary",
+          "description": "Получить сводку для дашборда\n\n**Возвращает:**\n- Основные метрики для отображения на дашборде",
+          "operationId": "get_dashboard_summary_api_v1_analytics_dashboard_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/predictions/cash-flow": {
+        "get": {
+          "tags": [
+            "Cash Flow Predictions"
+          ],
+          "summary": "Predict Cash Flow",
+          "description": "Прогнозировать денежный поток на несколько недель вперед\n\n**Параметры:**\n- **weeks_ahead**: На сколько недель вперед прогнозировать (1-12, по умолчанию 4)\n- **prediction_date**: Дата начала прогноза (по умолчанию - сейчас)\n\n**Возвращает:**\n- Прогнозы на каждую неделю с вероятностью кассовых разрывов",
+          "operationId": "predict_cash_flow_api_v1_predictions_cash_flow_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "weeks_ahead",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "integer",
+                "maximum": 12,
+                "minimum": 1,
+                "description": "На сколько недель вперед прогнозировать",
+                "default": 4,
+                "title": "Weeks Ahead"
+              },
+              "description": "На сколько недель вперед прогнозировать"
+            },
+            {
+              "name": "prediction_date",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Дата начала прогноза (YYYY-MM-DD)",
+                "title": "Prediction Date"
+              },
+              "description": "Дата начала прогноза (YYYY-MM-DD)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/predictions/cash-flow-gaps": {
+        "get": {
+          "tags": [
+            "Cash Flow Predictions"
+          ],
+          "summary": "Get Cash Flow Gaps",
+          "description": "Получить прогноз кассовых разрывов\n\n**Параметры:**\n- **weeks_ahead**: На сколько недель вперед проверять (1-12, по умолчанию 4)\n\n**Возвращает:**\n- Список потенциальных кассовых разрывов с вероятностью и размером",
+          "operationId": "get_cash_flow_gaps_api_v1_predictions_cash_flow_gaps_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "weeks_ahead",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "integer",
+                "maximum": 12,
+                "minimum": 1,
+                "description": "На сколько недель вперед проверять",
+                "default": 4,
+                "title": "Weeks Ahead"
+              },
+              "description": "На сколько недель вперед проверять"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/ar/invoices": {
+        "post": {
+          "tags": [
+            "Accounts Receivable"
+          ],
+          "summary": "Create Invoice",
+          "description": "Создать счет к получению\n\n**Параметры:**\n- **counterparty_id**: ID контрагента\n- **invoice_number**: Номер счета\n- **invoice_date**: Дата счета (ISO format)\n- **due_date**: Срок оплаты (ISO format)\n- **amount**: Сумма счета\n- **currency**: Валюта (по умолчанию RUB)\n- **description**: Описание\n- **auto_reminder_enabled**: Включить автоматические напоминания\n- **reminder_days_before**: За сколько дней напоминать",
+          "operationId": "create_invoice_api_v1_ar_invoices_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateInvoiceRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "get": {
+          "tags": [
+            "Accounts Receivable"
+          ],
+          "summary": "Get Invoices",
+          "description": "Получить список счетов к получению\n\n**Параметры:**\n- **status**: Фильтр по статусу (pending, partial, paid, overdue, cancelled)\n- **counterparty_id**: Фильтр по контрагенту",
+          "operationId": "get_invoices_api_v1_ar_invoices_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "status",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Фильтр по статусу",
+                "title": "Status"
+              },
+              "description": "Фильтр по статусу"
+            },
+            {
+              "name": "counterparty_id",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Фильтр по контрагенту",
+                "title": "Counterparty Id"
+              },
+              "description": "Фильтр по контрагенту"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/ar/invoices/{invoice_id}/mark-paid": {
+        "post": {
+          "tags": [
+            "Accounts Receivable"
+          ],
+          "summary": "Mark Invoice Paid",
+          "description": "Отметить счет как оплаченный\n\n**Параметры:**\n- **invoice_id**: ID счета\n- **paid_amount**: Сумма оплаты (если не указано - полная оплата)\n- **payment_transaction_id**: ID транзакции оплаты",
+          "operationId": "mark_invoice_paid_api_v1_ar_invoices__invoice_id__mark_paid_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "invoice_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "title": "Invoice Id"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkPaidRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/ar/overdue": {
+        "get": {
+          "tags": [
+            "Accounts Receivable"
+          ],
+          "summary": "Get Overdue Invoices",
+          "description": "Получить просроченные счета\n\n**Возвращает:**\n- Список просроченных счетов с количеством дней просрочки",
+          "operationId": "get_overdue_invoices_api_v1_ar_overdue_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/ar/summary": {
+        "get": {
+          "tags": [
+            "Accounts Receivable"
+          ],
+          "summary": "Get Ar Summary",
+          "description": "Получить сводку по дебиторской задолженности\n\n**Возвращает:**\n- Общая сумма ДЗ, просроченная ДЗ, количество счетов",
+          "operationId": "get_ar_summary_api_v1_ar_summary_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/ar/auto-match": {
+        "post": {
+          "tags": [
+            "Accounts Receivable"
+          ],
+          "summary": "Auto Match Payments",
+          "description": "Автоматически сопоставить входящие платежи со счетами\n\n**Возвращает:**\n- Количество сопоставленных счетов",
+          "operationId": "auto_match_payments_api_v1_ar_auto_match_post",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
+          },
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ]
+        }
+      },
+      "/api/v1/counterparties": {
+        "post": {
+          "tags": [
+            "Counterparties"
+          ],
+          "summary": "Create Counterparty",
+          "description": "Создать контрагента\n\n**Параметры:**\n- **name**: Название контрагента\n- **type**: Тип (customer, supplier, other)\n- **inn**: ИНН\n- **kpp**: КПП\n- **email**: Email\n- **phone**: Телефон\n- **account_number**: Номер счета\n- **bank_name**: Название банка\n- **bic**: БИК\n- **correspondent_account**: Корреспондентский счет\n- **notes**: Заметки",
+          "operationId": "create_counterparty_api_v1_counterparties_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateCounterpartyRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "get": {
+          "tags": [
+            "Counterparties"
+          ],
+          "summary": "List Counterparties",
+          "description": "Получить список контрагентов\n\n**Параметры:**\n- **type**: Фильтр по типу\n- **search**: Поиск по названию",
+          "operationId": "list_counterparties_api_v1_counterparties_get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "type",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Фильтр по типу (customer, supplier, other)",
+                "title": "Type"
+              },
+              "description": "Фильтр по типу (customer, supplier, other)"
+            },
+            {
+              "name": "search",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Поиск по названию",
+                "title": "Search"
+              },
+              "description": "Поиск по названию"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/counterparties/{counterparty_id}": {
+        "get": {
+          "tags": [
+            "Counterparties"
+          ],
+          "summary": "Get Counterparty",
+          "description": "Получить контрагента с деталями и статистикой\n\n**Параметры:**\n- **counterparty_id**: ID контрагента",
+          "operationId": "get_counterparty_api_v1_counterparties__counterparty_id__get",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "counterparty_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "title": "Counterparty Id"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "put": {
+          "tags": [
+            "Counterparties"
+          ],
+          "summary": "Update Counterparty",
+          "description": "Обновить данные контрагента\n\n**Параметры:**\n- **counterparty_id**: ID контрагента\n- Все остальные поля опциональны",
+          "operationId": "update_counterparty_api_v1_counterparties__counterparty_id__put",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "counterparty_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "title": "Counterparty Id"
+              }
+            }
+          ],
+          "requestBody": {
+            "required": true,
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateCounterpartyRequest"
+                }
+              }
+            }
+          },
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/counterparties/from-transaction/{transaction_id}": {
+        "post": {
+          "tags": [
+            "Counterparties"
+          ],
+          "summary": "Create Counterparty From Transaction",
+          "description": "Автоматически создать контрагента из транзакции\n\n**Параметры:**\n- **transaction_id**: ID транзакции",
+          "operationId": "create_counterparty_from_transaction_api_v1_counterparties_from_transaction__transaction_id__post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "transaction_id",
+              "in": "path",
+              "required": true,
+              "schema": {
+                "type": "integer",
+                "title": "Transaction Id"
+              }
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/sync/accounts": {
+        "post": {
+          "tags": [
+            "Data Synchronization"
+          ],
+          "summary": "Sync Accounts",
+          "description": "Синхронизировать счета из банков\n\n**Параметры:**\n- **bank_code**: Код банка (vbank, abank, sbank) или все банки",
+          "operationId": "sync_accounts_api_v1_sync_accounts_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "bank_code",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Код банка (если не указано - все банки)",
+                "title": "Bank Code"
+              },
+              "description": "Код банка (если не указано - все банки)"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/sync/transactions": {
+        "post": {
+          "tags": [
+            "Data Synchronization"
+          ],
+          "summary": "Sync Transactions",
+          "description": "Синхронизировать транзакции из банков\n\n**Параметры:**\n- **account_id**: ID счета (если не указано - все активные счета)\n- **days_back**: За сколько дней назад получать транзакции (1-365, по умолчанию 90)",
+          "operationId": "sync_transactions_api_v1_sync_transactions_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "account_id",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ID счета (если не указано - все счета)",
+                "title": "Account Id"
+              },
+              "description": "ID счета (если не указано - все счета)"
+            },
+            {
+              "name": "days_back",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "integer",
+                "maximum": 365,
+                "minimum": 1,
+                "description": "За сколько дней назад получать транзакции",
+                "default": 90,
+                "title": "Days Back"
+              },
+              "description": "За сколько дней назад получать транзакции"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/api/v1/sync/all": {
+        "post": {
+          "tags": [
+            "Data Synchronization"
+          ],
+          "summary": "Sync All",
+          "description": "Полная синхронизация: счета + транзакции\n\n**Параметры:**\n- **days_back**: За сколько дней назад получать транзакции (1-365, по умолчанию 90)",
+          "operationId": "sync_all_api_v1_sync_all_post",
+          "security": [
+            {
+              "HTTPBearer": []
+            }
+          ],
+          "parameters": [
+            {
+              "name": "days_back",
+              "in": "query",
+              "required": false,
+              "schema": {
+                "type": "integer",
+                "maximum": 365,
+                "minimum": 1,
+                "description": "За сколько дней назад получать транзакции",
+                "default": 90,
+                "title": "Days Back"
+              },
+              "description": "За сколько дней назад получать транзакции"
+            }
+          ],
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            },
+            "422": {
+              "description": "Validation Error",
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/HTTPValidationError"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "/health": {
+        "get": {
+          "summary": "Health Check",
+          "operationId": "health_check_health_get",
+          "responses": {
+            "200": {
+              "description": "Successful Response",
+              "content": {
+                "application/json": {
+                  "schema": {
+  
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "components": {
+      "schemas": {
+        "BankAccountSchema": {
+          "properties": {
+            "account_id": {
+              "type": "string",
+              "title": "Account Id",
+              "description": "ID счета"
+            },
+            "account_type": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Type",
+              "description": "Тип счета"
+            },
+            "currency": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency",
+              "description": "Валюта"
+            },
+            "account_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Name",
+              "description": "Название счета"
+            },
+            "iban": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Iban",
+              "description": "IBAN"
+            },
+            "bic": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bic",
+              "description": "BIC"
+            }
+          },
+          "type": "object",
+          "required": [
+            "account_id"
+          ],
+          "title": "BankAccountSchema",
+          "description": "Схема банковского счета"
+        },
+        "BankTransactionSchema": {
+          "properties": {
+            "transaction_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Transaction Id",
+              "description": "ID транзакции"
+            },
+            "account_id": {
+              "type": "string",
+              "title": "Account Id",
+              "description": "ID счета"
+            },
+            "amount": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Amount",
+              "description": "Сумма транзакции"
+            },
+            "currency": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency",
+              "description": "Валюта"
+            },
+            "transaction_type": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Transaction Type",
+              "description": "Тип транзакции"
+            },
+            "booking_date": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Booking Date",
+              "description": "Дата транзакции"
+            },
+            "value_date": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Value Date",
+              "description": "Дата валютирования"
+            },
+            "remittance_information": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Remittance Information",
+              "description": "Назначение платежа"
+            },
+            "creditor_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Creditor Name",
+              "description": "Имя получателя"
+            },
+            "creditor_account": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Creditor Account",
+              "description": "Счет получателя"
+            },
+            "debtor_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Debtor Name",
+              "description": "Имя плательщика"
+            },
+            "debtor_account": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Debtor Account",
+              "description": "Счет плательщика"
+            }
+          },
+          "type": "object",
+          "required": [
+            "account_id"
+          ],
+          "title": "BankTransactionSchema",
+          "description": "Схема банковской транзакции"
+        },
+        "BankUserCreate": {
+          "properties": {
+            "bank_code": {
+              "type": "string",
+              "title": "Bank Code"
+            },
+            "bank_user_id": {
+              "type": "string",
+              "title": "Bank User Id"
+            }
+          },
+          "type": "object",
+          "required": [
+            "bank_code",
+            "bank_user_id"
+          ],
+          "title": "BankUserCreate"
+        },
+        "BankUserResponse": {
+          "properties": {
+            "id": {
+              "type": "integer",
+              "title": "Id"
+            },
+            "user_id": {
+              "type": "integer",
+              "title": "User Id"
+            },
+            "bank_code": {
+              "type": "string",
+              "title": "Bank Code"
+            },
+            "bank_user_id": {
+              "type": "string",
+              "title": "Bank User Id"
+            },
+            "created_at": {
+              "type": "string",
+              "title": "Created At"
+            },
+            "updated_at": {
+              "type": "string",
+              "title": "Updated At"
+            }
+          },
+          "type": "object",
+          "required": [
+            "id",
+            "user_id",
+            "bank_code",
+            "bank_user_id",
+            "created_at",
+            "updated_at"
+          ],
+          "title": "BankUserResponse"
+        },
+        "CreateCounterpartyRequest": {
+          "properties": {
+            "name": {
+              "type": "string",
+              "title": "Name"
+            },
+            "type": {
+              "type": "string",
+              "title": "Type"
+            },
+            "inn": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Inn"
+            },
+            "kpp": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kpp"
+            },
+            "email": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Email"
+            },
+            "phone": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Phone"
+            },
+            "account_number": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Number"
+            },
+            "bank_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bank Name"
+            },
+            "bic": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bic"
+            },
+            "correspondent_account": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Correspondent Account"
+            },
+            "notes": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Notes"
+            }
+          },
+          "type": "object",
+          "required": [
+            "name",
+            "type"
+          ],
+          "title": "CreateCounterpartyRequest"
+        },
+        "CreateInvoiceRequest": {
+          "properties": {
+            "counterparty_id": {
+              "type": "integer",
+              "title": "Counterparty Id"
+            },
+            "invoice_number": {
+              "type": "string",
+              "title": "Invoice Number"
+            },
+            "invoice_date": {
+              "type": "string",
+              "title": "Invoice Date"
+            },
+            "due_date": {
+              "type": "string",
+              "title": "Due Date"
+            },
+            "amount": {
+              "type": "number",
+              "title": "Amount"
+            },
+            "currency": {
+              "type": "string",
+              "title": "Currency",
+              "default": "RUB"
+            },
+            "description": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Description"
+            },
+            "auto_reminder_enabled": {
+              "type": "boolean",
+              "title": "Auto Reminder Enabled",
+              "default": true
+            },
+            "reminder_days_before": {
+              "type": "integer",
+              "title": "Reminder Days Before",
+              "default": 3
+            }
+          },
+          "type": "object",
+          "required": [
+            "counterparty_id",
+            "invoice_number",
+            "invoice_date",
+            "due_date",
+            "amount"
+          ],
+          "title": "CreateInvoiceRequest"
+        },
+        "GetBankAccountsResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Успешность операции"
+            },
+            "accounts": {
+              "items": {
+                "$ref": "#/components/schemas/BankAccountSchema"
+              },
+              "type": "array",
+              "title": "Accounts",
+              "description": "Список счетов"
+            },
+            "consent_id": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Consent Id",
+              "description": "ID согласия"
+            },
+            "auto_approved": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Auto Approved",
+              "description": "Автоматически одобрено"
+            }
+          },
+          "type": "object",
+          "required": [
+            "success"
+          ],
+          "title": "GetBankAccountsResponse",
+          "description": "Ответ на запрос списка счетов"
+        },
+        "GetBankTransactionsResponse": {
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "title": "Success",
+              "description": "Успешность операции"
+            },
+            "account_id": {
+              "type": "string",
+              "title": "Account Id",
+              "description": "ID счета"
+            },
+            "transactions": {
+              "items": {
+                "$ref": "#/components/schemas/BankTransactionSchema"
+              },
+              "type": "array",
+              "title": "Transactions",
+              "description": "Список транзакций"
+            },
+            "total_count": {
+              "type": "integer",
+              "title": "Total Count",
+              "description": "Общее количество транзакций"
+            }
+          },
+          "type": "object",
+          "required": [
+            "success",
+            "account_id",
+            "total_count"
+          ],
+          "title": "GetBankTransactionsResponse",
+          "description": "Ответ на запрос транзакций"
+        },
+        "HTTPValidationError": {
+          "properties": {
+            "detail": {
+              "items": {
+                "$ref": "#/components/schemas/ValidationError"
+              },
+              "type": "array",
+              "title": "Detail"
+            }
+          },
+          "type": "object",
+          "title": "HTTPValidationError"
+        },
+        "MarkPaidRequest": {
+          "properties": {
+            "paid_amount": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paid Amount"
+            },
+            "payment_transaction_id": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Payment Transaction Id"
+            }
+          },
+          "type": "object",
+          "title": "MarkPaidRequest"
+        },
+        "RefreshTokenRequest": {
+          "properties": {
+            "refresh_token": {
+              "type": "string",
+              "title": "Refresh Token"
+            }
+          },
+          "type": "object",
+          "required": [
+            "refresh_token"
+          ],
+          "title": "RefreshTokenRequest"
+        },
+        "SMSVerificationConfirm": {
+          "properties": {
+            "phone_number": {
+              "type": "string",
+              "title": "Phone Number"
+            },
+            "code": {
+              "type": "string",
+              "maxLength": 6,
+              "minLength": 6,
+              "title": "Code"
+            }
+          },
+          "type": "object",
+          "required": [
+            "phone_number",
+            "code"
+          ],
+          "title": "SMSVerificationConfirm"
+        },
+        "TokenRequest": {
+          "properties": {
+            "email": {
+              "type": "string",
+              "title": "Email"
+            },
+            "password": {
+              "type": "string",
+              "title": "Password"
+            }
+          },
+          "type": "object",
+          "required": [
+            "email",
+            "password"
+          ],
+          "title": "TokenRequest"
+        },
+        "TokenResponse": {
+          "properties": {
+            "access_token": {
+              "type": "string",
+              "title": "Access Token"
+            },
+            "refresh_token": {
+              "type": "string",
+              "title": "Refresh Token"
+            },
+            "token_type": {
+              "type": "string",
+              "title": "Token Type",
+              "default": "bearer"
+            },
+            "expires_in": {
+              "type": "integer",
+              "title": "Expires In"
+            }
+          },
+          "type": "object",
+          "required": [
+            "access_token",
+            "refresh_token",
+            "expires_in"
+          ],
+          "title": "TokenResponse"
+        },
+        "UpdateCounterpartyRequest": {
+          "properties": {
+            "name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Name"
+            },
+            "type": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            },
+            "inn": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Inn"
+            },
+            "kpp": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kpp"
+            },
+            "email": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Email"
+            },
+            "phone": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Phone"
+            },
+            "account_number": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Account Number"
+            },
+            "bank_name": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bank Name"
+            },
+            "bic": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bic"
+            },
+            "correspondent_account": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Correspondent Account"
+            },
+            "notes": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Notes"
+            },
+            "is_active": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Is Active"
+            }
+          },
+          "type": "object",
+          "title": "UpdateCounterpartyRequest"
+        },
+        "UserRegister": {
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "title": "Email",
+              "description": "Email адрес"
+            },
+            "phone_number": {
+              "type": "string",
+              "title": "Phone Number",
+              "description": "Номер телефона в формате +7XXXXXXXXXX"
+            },
+            "first_name": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 2,
+              "title": "First Name"
+            },
+            "last_name": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 2,
+              "title": "Last Name"
+            },
+            "password": {
+              "type": "string",
+              "maxLength": 50,
+              "minLength": 8,
+              "title": "Password"
+            }
+          },
+          "type": "object",
+          "required": [
+            "email",
+            "phone_number",
+            "first_name",
+            "last_name",
+            "password"
+          ],
+          "title": "UserRegister"
+        },
+        "UserResponse": {
+          "properties": {
+            "email": {
+              "type": "string",
+              "format": "email",
+              "title": "Email",
+              "description": "Email адрес"
+            },
+            "phone_number": {
+              "type": "string",
+              "title": "Phone Number",
+              "description": "Номер телефона в формате +7XXXXXXXXXX"
+            },
+            "first_name": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 2,
+              "title": "First Name"
+            },
+            "last_name": {
+              "type": "string",
+              "maxLength": 100,
+              "minLength": 2,
+              "title": "Last Name"
+            },
+            "id": {
+              "type": "integer",
+              "title": "Id"
+            },
+            "is_active": {
+              "type": "boolean",
+              "title": "Is Active"
+            },
+            "is_email_verified": {
+              "type": "boolean",
+              "title": "Is Email Verified"
+            },
+            "is_phone_verified": {
+              "type": "boolean",
+              "title": "Is Phone Verified"
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "title": "Created At"
+            }
+          },
+          "type": "object",
+          "required": [
+            "email",
+            "phone_number",
+            "first_name",
+            "last_name",
+            "id",
+            "is_active",
+            "is_email_verified",
+            "is_phone_verified",
+            "created_at"
+          ],
+          "title": "UserResponse"
+        },
+        "ValidationError": {
+          "properties": {
+            "loc": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "array",
+              "title": "Location"
+            },
+            "msg": {
+              "type": "string",
+              "title": "Message"
+            },
+            "type": {
+              "type": "string",
+              "title": "Error Type"
+            }
+          },
+          "type": "object",
+          "required": [
+            "loc",
+            "msg",
+            "type"
+          ],
+          "title": "ValidationError"
+        }
+      },
+      "securitySchemes": {
+        "HTTPBearer": {
+          "type": "http",
+          "scheme": "bearer"
+        }
+      }
+    }
+  }

@@ -39,6 +39,49 @@ export default function CashFlowChart() {
       return;
     }
 
+    // Используем захардкоженные данные для демонстрации
+    const today = new Date();
+    const mockChartData = [
+      {
+        date: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", {
+          day: "2-digit",
+          month: "short",
+        }),
+        actual: null,
+        predicted: 1250000,
+      },
+      {
+        date: new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", {
+          day: "2-digit",
+          month: "short",
+        }),
+        actual: null,
+        predicted: 980000,
+      },
+      {
+        date: new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", {
+          day: "2-digit",
+          month: "short",
+        }),
+        actual: null,
+        predicted: -120000,
+      },
+      {
+        date: new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", {
+          day: "2-digit",
+          month: "short",
+        }),
+        actual: null,
+        predicted: 340000,
+      },
+    ];
+
+    setTimeout(() => {
+      setData(mockChartData);
+      setIsLoading(false);
+    }, 300);
+
+    /* Закомментирован реальный API вызов
     const fetchPredictions = async () => {
       try {
         setIsLoading(true);
@@ -63,6 +106,7 @@ export default function CashFlowChart() {
     };
 
     fetchPredictions();
+    */
   }, [isAuthenticated]);
 
   const primaryHslString = getHslColor(primaryHslParts[0], primaryHslParts[1], primaryHslParts[2]);
