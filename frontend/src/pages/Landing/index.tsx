@@ -52,7 +52,6 @@ export default function Landing() {
   return (
     <div className={styles.landing}>
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-
       {/* Hero Section */}
       <section className={styles.hero}>
         <div className={styles.heroContent}>

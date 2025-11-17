@@ -4,14 +4,14 @@ import { Badge } from "../../ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../ui/table";
 import { Users, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
 import { getInvoices, getARSummary, type Invoice, type ARSummary } from "../../utils/api";
 import StatCard from "../../components/StatCard";
 import styles from "./index.module.scss";
 import { toast } from "sonner";
+import { useMe } from "../../hooks/context";
 
 export default function Receivables() {
-  const { isAuthenticated } = useAuth();
+  const me = useMe();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [summary, setSummary] = useState<ARSummary["summary"] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -19,7 +19,7 @@ export default function Receivables() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!me) {
       setIsLoading(false);
       return;
     }
@@ -243,7 +243,7 @@ export default function Receivables() {
 
     fetchData();
     */
-  }, [isAuthenticated, statusFilter]);
+  }, [me, statusFilter]);
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; variant: string }> = {
@@ -271,7 +271,7 @@ export default function Receivables() {
     });
   };
 
-  if (!isAuthenticated) {
+  if (!me) {
     return (
       <Layout>
         <Card>
@@ -377,8 +377,7 @@ export default function Receivables() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Номер счета</TableHead>
-                      <TableHead>Контрагент</TableHead>
+                      {/* <TableHead>Номер счета</TableHead> */}
                       <TableHead>Дата</TableHead>
                       <TableHead>Срок оплаты</TableHead>
                       <TableHead>Сумма</TableHead>
@@ -389,8 +388,7 @@ export default function Receivables() {
                   <TableBody>
                     {invoices.map((invoice) => (
                       <TableRow key={invoice.id}>
-                        <TableCell className={styles.invoiceNumber}>{invoice.invoice_number}</TableCell>
-                        <TableCell>{invoice.counterparty_name}</TableCell>
+                        {/* <TableCell className={styles.invoiceNumber}>{invoice.invoice_number}</TableCell> */}
                         <TableCell>{formatDate(invoice.invoice_date)}</TableCell>
                         <TableCell>
                           {formatDate(invoice.due_date)}

@@ -1,13 +1,13 @@
 import Layout from "../../components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Settings as SettingsIcon } from "lucide-react";
-import { useAuth } from "../../hooks/useAuth";
 import styles from "./index.module.scss";
+import { useMe } from "../../hooks/context";
 
 export default function Settings() {
-  const { isAuthenticated } = useAuth();
+  const me = useMe();
 
-  if (!isAuthenticated) {
+  if (!me) {
     return (
       <Layout>
         <Card>

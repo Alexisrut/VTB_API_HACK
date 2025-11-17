@@ -1,5 +1,4 @@
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "../../hooks/useAuth";
 import { eraseCookie, setCookie, getCookie } from "../../utils/cookies";
 import { logout, getUserBankUsers, saveBankUser, deleteBankUser, createAccountConsent, getUserConsents, type BankConsent } from "../../utils/api";
 import Layout from "../../components/Layout";
@@ -10,6 +9,7 @@ import { CircleUser, Mail, Phone, Building2, Save, Trash2, Shield, CheckCircle2 
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import styles from "./index.module.scss";
+import { useMe } from "../../hooks/context";
 
 const bankNames: { [key: string]: string } = {
   vbank: "Virtual Bank",
@@ -18,7 +18,7 @@ const bankNames: { [key: string]: string } = {
 };
 
 export default function Profile() {
-  const { user, isLoading } = useAuth();
+  const me = useMe();
   const navigate = useNavigate();
   const [bankUsers, setBankUsers] = useState<Record<string, string>>({});
   const [bankUserInputs, setBankUserInputs] = useState<Record<string, string>>({});
@@ -61,11 +61,11 @@ export default function Profile() {
   }, []);
 
   useEffect(() => {
-    if (user) {
+    if (me) {
       loadBankUsers();
       loadConsents();
     }
-  }, [user, loadBankUsers, loadConsents]);
+  }, [me, loadBankUsers, loadConsents]);
 
   const handleSaveBankUser = async (bankCode: string) => {
     const bankUserId = bankUserInputs[bankCode]?.trim();
@@ -86,7 +86,7 @@ export default function Profile() {
         duration: 1500,
       });
     } catch (error: any) {
-      console.error("Error saving bank user:", error);
+      console.error("Error saving bank me:", error);
       const errorMessage = error.response?.data?.detail || "Ошибка при сохранении ID пользователя";
       toast.error("Не удалось сохранить ID пользователя", {
         description: errorMessage,
@@ -121,7 +121,7 @@ export default function Profile() {
         duration: 1500,
       });
     } catch (error: any) {
-      console.error("Error deleting bank user:", error);
+      console.error("Error deleting bank me:", error);
       const errorMessage = error.response?.data?.detail || "Ошибка при удалении ID пользователя";
       toast.error("Не удалось удалить ID пользователя", {
         description: errorMessage,
@@ -192,17 +192,8 @@ export default function Profile() {
     }, 500);
   };
 
-  if (isLoading) {
-    return (
-      <Layout>
-        <div className={styles.profileContainer}>
-          <div className={styles.loading}>Загрузка...</div>
-        </div>
-      </Layout>
-    );
-  }
 
-  if (!user) {
+  if (!me) {
     return (
       <Layout>
         <div className={styles.profileContainer}>
@@ -221,7 +212,7 @@ export default function Profile() {
               <CircleUser size={64} />
             </div>
             <h1 className={styles.profileName}>
-              {user.first_name} {user.last_name}
+              {me.first_name} {me.last_name}
             </h1>
           </div>
 
@@ -232,7 +223,7 @@ export default function Profile() {
               </div>
               <div className={styles.infoContent}>
                 <div className={styles.infoLabel}>Email</div>
-                <div className={styles.infoValue}>{user.email}</div>
+                <div className={styles.infoValue}>{me.email}</div>
               </div>
             </div>
 
@@ -242,7 +233,7 @@ export default function Profile() {
               </div>
               <div className={styles.infoContent}>
                 <div className={styles.infoLabel}>Телефон</div>
-                <div className={styles.infoValue}>{user.phone_number}</div>
+                <div className={styles.infoValue}>{me.phone_number}</div>
               </div>
             </div>
           </div>
@@ -264,13 +255,13 @@ export default function Profile() {
                       <div className={styles.consentIcon}>
                         <Building2 size={20} />
                       </div>
-                      <Label htmlFor={`bank-user-${bankCode}`} className={styles.consentLabel}>
+                      <Label htmlFor={`bank-me-${bankCode}`} className={styles.consentLabel}>
                         {bankNames[bankCode]}
                       </Label>
                     </div>
                     <div className={styles.consentInputGroup}>
                       <Input
-                        id={`bank-user-${bankCode}`}
+                        id={`bank-me-${bankCode}`}
                         type="text"
                         placeholder="Введите ваш ID в банке"
                         value={bankUserInputs[bankCode] || ""}

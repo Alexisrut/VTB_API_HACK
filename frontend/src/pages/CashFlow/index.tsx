@@ -2,7 +2,6 @@ import Layout from "../../components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { TrendingUp, AlertTriangle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
 import { getCashFlowPredictions, getCashFlowGaps, type CashFlowPrediction, type CashFlowGap } from "../../utils/api";
 import {
   Area,
@@ -26,18 +25,19 @@ import {
   accentHslParts,
 } from "../../styles/colors";
 import { toast } from "sonner";
+import { useMe } from "../../hooks/context";
 
 const getHslColor = (h: string, s: string, l: string) => `hsl(${h}, ${s}, ${l})`;
 
 export default function CashFlow() {
-  const { isAuthenticated } = useAuth();
+  const me = useMe();
   const [predictions, setPredictions] = useState<CashFlowPrediction["predictions"]>([]);
   const [gaps, setGaps] = useState<CashFlowGap["gaps"]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!me) {
       setIsLoading(false);
       return;
     }
@@ -126,7 +126,7 @@ export default function CashFlow() {
 
     fetchData();
     */
-  }, [isAuthenticated]);
+  }, [me]);
 
   const primaryHslString = getHslColor(primaryHslParts[0], primaryHslParts[1], primaryHslParts[2]);
   const accentHslString = getHslColor(accentHslParts[0], accentHslParts[1], accentHslParts[2]);
@@ -138,7 +138,7 @@ export default function CashFlow() {
     outflow: p.predicted_outflow,
   })) || [];
 
-  if (!isAuthenticated) {
+  if (!me) {
     return (
       <Layout>
         <Card className={styles.card}>

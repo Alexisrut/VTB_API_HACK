@@ -11,9 +11,9 @@ import {
 } from "../../ui/table";
 import { useEffect, useState } from "react";
 import { getAllBankAccounts, getAccountTransactions, getAccountBalances, getAccountId, type BankAccount, type BankTransaction } from "../../utils/api";
-import { useAuth } from "../../hooks/useAuth";
 import styles from "./index.module.scss";
 import { Phone } from "lucide-react";
+import { useMe } from "../../hooks/context";
 
 interface Receivable {
   id: string;
@@ -54,13 +54,13 @@ function isOverdue(dateString?: string): boolean {
 }
 
 export default function ReceivablesTable() {
-  const { isAuthenticated } = useAuth();
+  const me = useMe();
   const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!me) {
       setIsLoading(false);
       return;
     }
@@ -69,49 +69,49 @@ export default function ReceivablesTable() {
     const mockReceivables: Receivable[] = [
       {
         id: "rec-1",
-        counterparty: "ВТБ",
+        counterparty: "Vbank",
         amount: 450000,
         dueDate: "15.11",
         status: "received",
       },
       {
         id: "rec-2",
-        counterparty: "Сбербанк",
+        counterparty: "Sbank",
         amount: 320000,
         dueDate: "14.11",
         status: "received",
       },
       {
         id: "rec-3",
-        counterparty: "Альфа-Банк",
+        counterparty: "Abank",
         amount: 180000,
         dueDate: "13.11",
         status: "pending",
       },
       {
         id: "rec-4",
-        counterparty: "ВТБ",
+        counterparty: "Vbank",
         amount: 275000,
         dueDate: "12.11",
         status: "received",
       },
       {
         id: "rec-5",
-        counterparty: "Сбербанк",
+        counterparty: "Sbank",
         amount: 95000,
         dueDate: "11.11",
         status: "pending",
       },
       {
         id: "rec-6",
-        counterparty: "Альфа-Банк",
+        counterparty: "Abank",
         amount: 520000,
         dueDate: "10.11",
         status: "received",
       },
       {
         id: "rec-7",
-        counterparty: "ВТБ",
+        counterparty: "Vbank",
         amount: 68000,
         dueDate: "09.11",
         status: "overdue",
@@ -271,7 +271,7 @@ export default function ReceivablesTable() {
 
     fetchReceivables();
     */
-  }, [isAuthenticated]);
+  }, [me]);
 
   const getStatusBadge = (status: string) => {
     if (status === "overdue") {
@@ -295,7 +295,7 @@ export default function ReceivablesTable() {
     );
   };
 
-  if (!isAuthenticated) {
+  if (!me) {
     return (
       <Card className={styles.cardRoot}>
         <CardHeader className={styles.header}>

@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { getCookie, eraseCookie } from "../utils/cookies";
 import { getMe, type UserResponse } from "../utils/api";
+import type { AxiosError } from "axios";
 
 export const useAuth = () => {
   const [user, setUser] = useState<UserResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -20,14 +22,18 @@ export const useAuth = () => {
         const { data } = await getMe();
         setUser(data);
         setIsAuthenticated(true);
-      } catch (error: any) {
-        // Если ошибка 401 или 403, токен недействителен - очищаем состояние
-        if (error?.response?.status === 401 || error?.response?.status === 403) {
+        setError(null);
+      } catch (err) {
+        const axiosErr = err as AxiosError;
+
+        // Сохраняем ошибку
+        setError(axiosErr.response?.data as string ?? axiosErr.message);
+
+        if (axiosErr.response?.status === 401 || axiosErr.response?.status === 403) {
           console.log("Token invalid or expired, clearing auth state");
           eraseCookie("access_token");
-          eraseCookie("refresh_token");
         }
-        console.error("Failed to get user:", error);
+
         setIsAuthenticated(false);
         setUser(null);
       } finally {
@@ -43,6 +49,7 @@ export const useAuth = () => {
     if (!token) {
       setUser(null);
       setIsAuthenticated(false);
+      setError("No token");
       return;
     }
 
@@ -50,13 +57,14 @@ export const useAuth = () => {
       const { data } = await getMe();
       setUser(data);
       setIsAuthenticated(true);
-    } catch (error) {
-      console.error("Failed to refetch user:", error);
+      setError(null);
+    } catch (err) {
+      const axiosErr = err as AxiosError;
+      setError(axiosErr.response?.data as string ?? axiosErr.message);
       setUser(null);
       setIsAuthenticated(false);
     }
   };
 
-  return { user, isLoading, isAuthenticated, refetch };
+  return { user, isLoading, isAuthenticated, error, refetch };
 };
-

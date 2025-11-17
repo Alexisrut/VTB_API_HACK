@@ -1,7 +1,6 @@
 import axios from "axios";
 import { getCookie, setCookie, eraseCookie } from "./cookies";
 
-
 export interface RegisterData {
   email: string;
   phone_number: string;
@@ -25,7 +24,6 @@ export interface UserResponse {
   is_active: boolean;
 }
 
-
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const api = axios.create({
@@ -35,10 +33,11 @@ const api = axios.create({
 // Логирование запросов
 api.interceptors.request.use((config) => {
   const token = getCookie("access_token");
-  if (token && !config.headers.Authorization) {
-    config.headers.Authorization = `Bearer ${token}`;
+  config.headers = config.headers || {};
+  if (token) {
+    config.headers["Authorization"] = `Bearer ${token}`;
   }
-  
+
   // Логируем запросы (только в development)
   if (import.meta.env.DEV) {
     console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url}`, {
@@ -46,7 +45,7 @@ api.interceptors.request.use((config) => {
       data: config.data,
     });
   }
-  
+
   return config;
 });
 
@@ -55,21 +54,31 @@ api.interceptors.response.use(
   (response) => {
     // Логируем успешные ответы (только в development)
     if (import.meta.env.DEV) {
-      console.log(`[API Response] ${response.config.method?.toUpperCase()} ${response.config.url}`, {
-        status: response.status,
-        data: response.data,
-      });
+      console.log(
+        `[API Response] ${response.config.method?.toUpperCase()} ${
+          response.config.url
+        }`,
+        {
+          status: response.status,
+          data: response.data,
+        }
+      );
     }
     return response;
   },
   (error) => {
     // Логируем ошибки
     if (error.response) {
-      console.error(`[API Error] ${error.config?.method?.toUpperCase()} ${error.config?.url}`, {
-        status: error.response.status,
-        data: error.response.data,
-        headers: error.response.headers,
-      });
+      console.error(
+        `[API Error] ${error.config?.method?.toUpperCase()} ${
+          error.config?.url
+        }`,
+        {
+          status: error.response.status,
+          data: error.response.data,
+          headers: error.response.headers,
+        }
+      );
     } else if (error.request) {
       console.error(`[API Error] No response received`, error.request);
     } else {
@@ -81,10 +90,10 @@ api.interceptors.response.use(
 
 // для автоматического обновления токена (объединено с логированием выше)
 api.interceptors.response.use(
-  (response: any) => response,
-  async (error: { config: any; response: { status: number; }; }) => {
+  (response) => response,
+  async (error: { config: any; response: { status: number } }) => {
     const originalRequest = error.config;
-    
+
     // Логируем ошибки (уже делается выше, но добавляем для refresh token)
     if (error.response?.status === 401 && !originalRequest._retry) {
       console.log("[API] Token expired, attempting refresh...");
@@ -97,11 +106,15 @@ api.interceptors.response.use(
             `${API_URL}/auth/refresh`,
             { refresh_token: refreshToken }
           );
-          setCookie("access_token", data.access_token, 15 / (24 * 60)); // 15 минут
-          setCookie("refresh_token", data.refresh_token, 7); // 7 дней
-          axios.defaults.headers.common["Authorization"] = `Bearer ${data.access_token}`;
-          originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
-          console.log("[API] Token refreshed successfully");
+          setCookie("access_token", data.access_token, 15 / (24 * 60));
+          setCookie("refresh_token", data.refresh_token, 7);
+          api.defaults.headers.common[
+            "Authorization"
+          ] = `Bearer ${data.access_token}`;
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers[
+            "Authorization"
+          ] = `Bearer ${data.access_token}`;
           return api(originalRequest);
         } catch (refreshError) {
           console.error("[API] Refresh token failed", refreshError);
@@ -122,13 +135,10 @@ api.interceptors.response.use(
   }
 );
 
-
-
 export const register = (data: RegisterData) => {
-  console.log("api: send register request: ", data)
+  console.log("api: send register request: ", data);
   return api.post<UserResponse>("/auth/register", data);
 };
-
 
 export const verifySms = (phone_number: string, code: string) => {
   return api.post("/auth/verify-sms", { phone_number, code });
@@ -154,7 +164,6 @@ export const logout = () => {
   delete axios.defaults.headers.common["Authorization"];
   // Можно добавить вызов API для инвалидации токена на сервере, если нужно
 };
-
 
 export interface BankAccount {
   account_id?: string;
@@ -182,13 +191,15 @@ export interface BankAccount {
 
 // Вспомогательная функция для получения account_id из разных форматов
 export const getAccountId = (account: BankAccount): string | null => {
-  return account.account_id || 
-         account.id || 
-         account.accountId || 
-         account.account?.identification || 
-         account.account?.account_id || 
-         null;
-}
+  return (
+    account.account_id ||
+    account.id ||
+    account.accountId ||
+    account.account?.identification ||
+    account.account?.account_id ||
+    null
+  );
+};
 
 export interface BankAccountsResponse {
   success: boolean;
@@ -220,9 +231,11 @@ export interface BankTransaction {
   valueDateTime?: string;
   remittance_information?: string;
   transactionInformation?: string;
-  remittanceInformation?: {
-    unstructured?: string;
-  } | string;
+  remittanceInformation?:
+    | {
+        unstructured?: string;
+      }
+    | string;
   creditor_name?: string;
   creditorName?: string;
   creditor_account?: string;
@@ -246,10 +259,12 @@ export interface BankTransactionsResponse {
 
 export interface BankBalance {
   accountId?: string;
-  amount?: {
-    amount: string;
-    currency: string;
-  } | string;
+  amount?:
+    | {
+        amount: string;
+        currency: string;
+      }
+    | string;
   balanceAmount?: {
     amount: string;
     currency: string;
@@ -262,15 +277,17 @@ export interface BankBalance {
 
 export interface BankBalancesResponse {
   success: boolean;
-  balances: BankBalance[] | {
-    data?: {
-      balance?: BankBalance[];
-    };
-    Data?: {
-      Balance?: BankBalance[];
-    };
-    balance?: BankBalance[];
-  };
+  balances:
+    | BankBalance[]
+    | {
+        data?: {
+          balance?: BankBalance[];
+        };
+        Data?: {
+          Balance?: BankBalance[];
+        };
+        balance?: BankBalance[];
+      };
 }
 
 // Получить все счета из всех банков
@@ -280,9 +297,12 @@ export const getAllBankAccounts = () => {
 
 // Получить счета из конкретного банка
 export const getBankAccounts = (bankCode: string) => {
-  return api.get<{ success: boolean; accounts: BankAccount[]; consent_id?: string; auto_approved?: boolean }>(
-    `/api/v1/banks/accounts?bank_code=${bankCode}`
-  );
+  return api.get<{
+    success: boolean;
+    accounts: BankAccount[];
+    consent_id?: string;
+    auto_approved?: boolean;
+  }>(`/api/v1/banks/accounts?bank_code=${bankCode}`);
 };
 
 // Получить балансы счета
@@ -294,22 +314,24 @@ export const getAccountBalances = (
   const params = new URLSearchParams({
     bank_code: bankCode,
   });
-  
+
   // Используем согласие из куки, если не указано явно
   const effectiveConsentId = getCookie(`consent_${bankCode}`);
   if (effectiveConsentId) {
     params.append("consent_id", effectiveConsentId);
   }
-  
+
   return api.get<BankBalancesResponse>(
     `/api/v1/banks/accounts/${accountId}/balances?${params.toString()}`
   );
 };
 
 // Утилита для извлечения баланса из ответа API
-export const extractBalanceFromResponse = (response: { data: BankBalancesResponse }): number => {
+export const extractBalanceFromResponse = (response: {
+  data: BankBalancesResponse;
+}): number => {
   let balances = response.data.balances;
-  
+
   // Поддерживаем разные форматы ответа
   if (balances && !Array.isArray(balances)) {
     // Формат: { data: { balance: [...] } }
@@ -325,20 +347,23 @@ export const extractBalanceFromResponse = (response: { data: BankBalancesRespons
       balances = (balances as any).balance;
     }
   }
-  
+
   if (Array.isArray(balances) && balances.length > 0) {
     // Ищем баланс типа "InterimAvailable" или "InterimBooked"
     // Поддерживаем оба формата: balanceType/type и balanceAmount/amount
-    const balance = balances.find(
-      (b: any) => 
-        (b.type === "InterimAvailable" || b.balanceType === "InterimAvailable") ||
-        (b.type === "InterimBooked" || b.balanceType === "InterimBooked")
-    ) || balances[0];
-    
+    const balance =
+      balances.find(
+        (b: any) =>
+          b.type === "InterimAvailable" ||
+          b.balanceType === "InterimAvailable" ||
+          b.type === "InterimBooked" ||
+          b.balanceType === "InterimBooked"
+      ) || balances[0];
+
     // Извлекаем сумму из разных форматов
     // Поддерживаем: amount.amount, balanceAmount.amount, amount (строка)
     let amountStr: string | undefined;
-    
+
     if (balance?.amount) {
       if (typeof balance.amount === "object" && balance.amount.amount) {
         amountStr = balance.amount.amount;
@@ -346,15 +371,18 @@ export const extractBalanceFromResponse = (response: { data: BankBalancesRespons
         amountStr = balance.amount;
       }
     }
-    
+
     if (!amountStr && balance?.balanceAmount) {
-      if (typeof balance.balanceAmount === "object" && balance.balanceAmount.amount) {
+      if (
+        typeof balance.balanceAmount === "object" &&
+        balance.balanceAmount.amount
+      ) {
         amountStr = balance.balanceAmount.amount;
       } else if (typeof balance.balanceAmount === "string") {
         amountStr = balance.balanceAmount;
       }
     }
-    
+
     if (amountStr) {
       const parsed = parseFloat(String(amountStr));
       if (!isNaN(parsed)) {
@@ -362,7 +390,7 @@ export const extractBalanceFromResponse = (response: { data: BankBalancesRespons
       }
     }
   }
-  
+
   return 0;
 };
 
@@ -376,22 +404,20 @@ export const getAccountTransactions = (
   const params = new URLSearchParams({
     bank_code: bankCode,
   });
-  
+
   // Используем согласие из куки, если не указано явно
   const effectiveConsentId = getCookie(`consent_${bankCode}`);
   if (effectiveConsentId) {
     params.append("consent_id", effectiveConsentId);
   }
-  
+
   if (fromDate) params.append("from_date", fromDate);
   if (toDate) params.append("to_date", toDate);
-  
+
   return api.get<BankTransactionsResponse>(
     `/api/v1/banks/accounts/${accountId}/transactions?${params.toString()}`
   );
 };
-
-
 
 export interface BankUser {
   id: number;
@@ -455,14 +481,17 @@ export interface ConsentsResponse {
 }
 
 // Создать согласие для банка
-export const createAccountConsent = (bankCode: string, permissions?: string[]) => {
+export const createAccountConsent = (
+  bankCode: string,
+  permissions?: string[]
+) => {
   const params = new URLSearchParams({
     bank_code: bankCode,
   });
   if (permissions && permissions.length > 0) {
-    permissions.forEach(perm => params.append("permissions", perm));
+    permissions.forEach((perm) => params.append("permissions", perm));
   }
-  
+
   return api.post<CreateConsentResponse>(
     `/api/v1/banks/account-consents?${params.toString()}`
   );
@@ -515,7 +544,9 @@ export const getHealthMetrics = (periodStart?: string, periodEnd?: string) => {
   const params = new URLSearchParams();
   if (periodStart) params.append("period_start", periodStart);
   if (periodEnd) params.append("period_end", periodEnd);
-  return api.get<HealthMetrics>(`/api/v1/analytics/health-metrics?${params.toString()}`);
+  return api.get<HealthMetrics>(
+    `/api/v1/analytics/health-metrics?${params.toString()}`
+  );
 };
 
 export const getDashboardSummary = () => {
@@ -549,14 +580,21 @@ export interface CashFlowGap {
   error?: string;
 }
 
-export const getCashFlowPredictions = (weeksAhead: number = 4, predictionDate?: string) => {
+export const getCashFlowPredictions = (
+  weeksAhead: number = 4,
+  predictionDate?: string
+) => {
   const params = new URLSearchParams({ weeks_ahead: weeksAhead.toString() });
   if (predictionDate) params.append("prediction_date", predictionDate);
-  return api.get<CashFlowPrediction>(`/api/v1/predictions/cash-flow?${params.toString()}`);
+  return api.get<CashFlowPrediction>(
+    `/api/v1/predictions/cash-flow?${params.toString()}`
+  );
 };
 
 export const getCashFlowGaps = (weeksAhead: number = 4) => {
-  return api.get<CashFlowGap>(`/api/v1/predictions/cash-flow-gaps?weeks_ahead=${weeksAhead}`);
+  return api.get<CashFlowGap>(
+    `/api/v1/predictions/cash-flow-gaps?weeks_ahead=${weeksAhead}`
+  );
 };
 
 // ==================== ACCOUNTS RECEIVABLE API ====================
@@ -597,7 +635,8 @@ export interface ARSummary {
 export const getInvoices = (status?: string, counterpartyId?: number) => {
   const params = new URLSearchParams();
   if (status) params.append("status", status);
-  if (counterpartyId) params.append("counterparty_id", counterpartyId.toString());
+  if (counterpartyId)
+    params.append("counterparty_id", counterpartyId.toString());
   return api.get<InvoicesResponse>(`/api/v1/ar/invoices?${params.toString()}`);
 };
 

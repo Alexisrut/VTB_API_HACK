@@ -3,8 +3,9 @@ import { Badge } from "../../ui/badge";
 import { Building2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getAllBankAccounts, getAccountBalances, extractBalanceFromResponse, getAccountId, type BankAccount } from "../../utils/api";
-import { useAuth } from "../../hooks/useAuth";
+// import { useAuth } from "../../hooks/useAuth";
 import styles from "./index.module.scss";
+import { useMe } from "../../hooks/context";
 
 interface AccountDisplay {
   bank: string;
@@ -46,14 +47,14 @@ function getAccountBalance(account: BankAccount): number {
 }
 
 export default function BankAccountsList() {
-  const { isAuthenticated } = useAuth();
+  const me = useMe();
   const [accounts, setAccounts] = useState<AccountDisplay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!me) {
       setIsLoading(false);
       return;
     }
@@ -61,7 +62,7 @@ export default function BankAccountsList() {
     // Используем захардкоженные данные для демонстрации
     const mockAccounts: AccountDisplay[] = [
       {
-        bank: "ВТБ",
+        bank: "Vbank",
         balance: 1250000,
         currency: "₽",
         lastSync: "только что",
@@ -69,7 +70,7 @@ export default function BankAccountsList() {
         accountId: "vtb-account-1",
       },
       {
-        bank: "Сбербанк",
+        bank: "Abank",
         balance: 850000,
         currency: "₽",
         lastSync: "только что",
@@ -77,7 +78,7 @@ export default function BankAccountsList() {
         accountId: "sber-account-1",
       },
       {
-        bank: "Альфа-Банк",
+        bank: "Sbank",
         balance: 350000,
         currency: "₽",
         lastSync: "только что",
@@ -202,9 +203,9 @@ export default function BankAccountsList() {
 
     fetchAccounts();
     */
-  }, [isAuthenticated]);
+  }, [me]);
 
-  if (!isAuthenticated) {
+  if (!me) {
     return (
       <Card className={styles.bankCard}>
         <CardHeader className={styles.bankCardHeader}>

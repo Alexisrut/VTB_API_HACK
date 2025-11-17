@@ -3,10 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../ui/table";
 import { Calendar, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
 import { getAllBankAccounts, getAccountTransactions, getAccountId, type BankTransaction } from "../../utils/api";
 import styles from "./index.module.scss";
 import { toast } from "sonner";
+import { useMe } from "../../hooks/context";
 
 const bankNames: { [key: string]: string } = {
   vbank: "Virtual Bank",
@@ -15,14 +15,14 @@ const bankNames: { [key: string]: string } = {
 };
 
 export default function Payments() {
-  const { isAuthenticated } = useAuth();
+  const me = useMe();
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "income" | "expense">("all");
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!me) {
       setIsLoading(false);
       return;
     }
@@ -35,7 +35,7 @@ export default function Payments() {
         transaction_type: "Credit",
         amount: 450000,
         transactionInformation: "Оплата по счету INV-2024-001 от ООО \"Альфа\"",
-        bankName: "ВТБ",
+        bankName: "Vbank",
         bankCode: "vtb",
         status: "Booked",
       },
@@ -45,7 +45,7 @@ export default function Payments() {
         transaction_type: "Credit",
         amount: 320000,
         transactionInformation: "Оплата по счету INV-2024-002 от ООО \"Бета\"",
-        bankName: "Сбербанк",
+        bankName: "Sbank",
         bankCode: "sber",
         status: "Booked",
       },
@@ -55,7 +55,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 125000,
         transactionInformation: "Оплата поставщику ООО \"Снабжение\"",
-        bankName: "ВТБ",
+        bankName: "Vbank",
         bankCode: "vtb",
         status: "Booked",
       },
@@ -65,7 +65,7 @@ export default function Payments() {
         transaction_type: "Credit",
         amount: 180000,
         transactionInformation: "Оплата по счету INV-2024-003 от ООО \"Гамма\"",
-        bankName: "Альфа-Банк",
+        bankName: "Abank",
         bankCode: "alpha",
         status: "Booked",
       },
@@ -75,7 +75,7 @@ export default function Payments() {
         transaction_type: "Credit",
         amount: 275000,
         transactionInformation: "Оплата по счету INV-2024-004 от ООО \"Дельта\"",
-        bankName: "ВТБ",
+        bankName: "Vbank",
         bankCode: "vtb",
         status: "Booked",
       },
@@ -85,7 +85,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 85000,
         transactionInformation: "Аренда офиса за ноябрь",
-        bankName: "Сбербанк",
+        bankName: "Sbank",
         bankCode: "sber",
         status: "Booked",
       },
@@ -95,7 +95,7 @@ export default function Payments() {
         transaction_type: "Credit",
         amount: 95000,
         transactionInformation: "Оплата по счету INV-2024-005 от ООО \"Эпсилон\"",
-        bankName: "Сбербанк",
+        bankName: "Sbank",
         bankCode: "sber",
         status: "Booked",
       },
@@ -105,7 +105,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 45000,
         transactionInformation: "Коммунальные услуги",
-        bankName: "Альфа-Банк",
+        bankName: "Abank",
         bankCode: "alpha",
         status: "Booked",
       },
@@ -115,7 +115,7 @@ export default function Payments() {
         transaction_type: "Credit",
         amount: 520000,
         transactionInformation: "Оплата по счету INV-2024-006 от ООО \"Зета\"",
-        bankName: "Альфа-Банк",
+        bankName: "Abank",
         bankCode: "alpha",
         status: "Booked",
       },
@@ -125,7 +125,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 220000,
         transactionInformation: "Закупка материалов",
-        bankName: "ВТБ",
+        bankName: "Vbank",
         bankCode: "vtb",
         status: "Booked",
       },
@@ -135,7 +135,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 68000,
         transactionInformation: "Зарплата сотрудникам",
-        bankName: "Сбербанк",
+        bankName: "Sbank",
         bankCode: "sber",
         status: "Booked",
       },
@@ -145,7 +145,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 155000,
         transactionInformation: "Налоговые платежи",
-        bankName: "ВТБ",
+        bankName: "Vbank",
         bankCode: "vtb",
         status: "Booked",
       },
@@ -155,7 +155,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 92000,
         transactionInformation: "Оплата услуг связи и интернета",
-        bankName: "Альфа-Банк",
+        bankName: "Abank",
         bankCode: "alpha",
         status: "Booked",
       },
@@ -165,7 +165,7 @@ export default function Payments() {
         transaction_type: "Credit",
         amount: 410000,
         transactionInformation: "Оплата по счету INV-2024-013 от ООО \"Ню\"",
-        bankName: "ВТБ",
+        bankName: "Vbank",
         bankCode: "vtb",
         status: "Booked",
       },
@@ -175,7 +175,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 175000,
         transactionInformation: "Страховые взносы",
-        bankName: "Сбербанк",
+        bankName: "Sbank",
         bankCode: "sber",
         status: "Booked",
       },
@@ -185,7 +185,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 38000,
         transactionInformation: "Канцелярские товары",
-        bankName: "Альфа-Банк",
+        bankName: "Abank",
         bankCode: "alpha",
         status: "Booked",
       },
@@ -195,7 +195,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 420000,
         transactionInformation: "Оплата подрядчикам",
-        bankName: "ВТБ",
+        bankName: "Vbank",
         bankCode: "vtb",
         status: "Booked",
       },
@@ -205,7 +205,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 265000,
         transactionInformation: "Лизинговый платеж",
-        bankName: "Сбербанк",
+        bankName: "Sbank",
         bankCode: "sber",
         status: "Booked",
       },
@@ -215,7 +215,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 115000,
         transactionInformation: "Реклама и маркетинг",
-        bankName: "Альфа-Банк",
+        bankName: "Abank",
         bankCode: "alpha",
         status: "Booked",
       },
@@ -225,7 +225,7 @@ export default function Payments() {
         transaction_type: "Debit",
         amount: 340000,
         transactionInformation: "Закупка оборудования",
-        bankName: "ВТБ",
+        bankName: "Vbank",
         bankCode: "vtb",
         status: "Booked",
       },
@@ -319,7 +319,7 @@ export default function Payments() {
 
     fetchTransactions();
     */
-  }, [isAuthenticated]);
+  }, [me]);
 
   const filteredTransactions = transactions.filter((tx) => {
     if (filter === "all") return true;
@@ -347,7 +347,7 @@ export default function Payments() {
     });
   };
 
-  if (!isAuthenticated) {
+  if (!me) {
     return (
       <Layout>
         <Card>

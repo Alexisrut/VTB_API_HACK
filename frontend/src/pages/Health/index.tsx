@@ -2,20 +2,20 @@ import Layout from "../../components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Heart, TrendingUp, TrendingDown, AlertCircle, DollarSign } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
 import { getHealthMetrics, type HealthMetrics } from "../../utils/api";
 import StatCard from "../../components/StatCard";
 import styles from "./index.module.scss";
 import { toast } from "sonner";
+import { useMe } from "../../hooks/context";
 
 export default function Health() {
-  const { isAuthenticated } = useAuth();
+  const me = useMe();
   const [metrics, setMetrics] = useState<HealthMetrics["metrics"] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!me) {
       setIsLoading(false);
       return;
     }
@@ -67,7 +67,7 @@ export default function Health() {
 
     fetchMetrics();
     */
-  }, [isAuthenticated]);
+  }, [me]);
 
   const getHealthStatusColor = (status?: string) => {
     switch (status?.toLowerCase()) {
@@ -103,7 +103,7 @@ export default function Health() {
     }
   };
 
-  if (!isAuthenticated) {
+  if (!me) {
     return (
       <Layout>
         <Card>

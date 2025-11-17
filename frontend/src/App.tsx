@@ -11,11 +11,14 @@ import Payments from "./pages/Payments";
 import Settings from "./pages/Settings";
 import OAuthSuccess from "./pages/Auth/OAuthSuccess";
 import NotFound from "./pages/NotFound";
+import { AppContextProvider } from "./hooks/context";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <AppContextProvider>
+
     <TooltipProvider>
       <Toaster 
         position="top-center"
@@ -30,7 +33,7 @@ const App = () => (
           },
           className: 'custom-toast',
         }}
-      />
+        />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Home />} />
@@ -41,11 +44,11 @@ const App = () => (
           <Route path="/payments" element={<Payments />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/auth/success" element={<OAuthSuccess />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
+    </AppContextProvider>
   </QueryClientProvider>
 );
 

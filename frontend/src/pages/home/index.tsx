@@ -9,20 +9,20 @@ import styles from "./index.module.scss";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { AuthModal } from "../Auth";
-import { useAuth } from "../../hooks/useAuth";
 import { getDashboardSummary, getAllBankAccounts, getAccountBalances, extractBalanceFromResponse, getAccountId, type DashboardSummary } from "../../utils/api";
+import { useMe } from "../../hooks/context";
 
 export default function Index() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const navigate = useNavigate();
-  const { isAuthenticated, isLoading } = useAuth();
+  const me = useMe();
   const [dashboardData, setDashboardData] = useState<DashboardSummary["summary"] | null>(null);
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false);
   const [totalBalance, setTotalBalance] = useState<number | null>(null);
   const [accountsCount, setAccountsCount] = useState<number>(0);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!me) {
       return;
     }
 
@@ -59,10 +59,10 @@ export default function Index() {
 
     fetchDashboardData();
     */
-  }, [isAuthenticated]);
+  }, [me]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!me) {
       return;
     }
 
@@ -135,10 +135,10 @@ export default function Index() {
 
     fetchBalances();
     */
-  }, [isAuthenticated]);
+  }, [me]);
 
   const handleUserClick = () => {
-    if (isAuthenticated) {
+    if (me) {
       navigate("/profile");
     } else {
       setIsAuthOpen(true);
@@ -146,21 +146,8 @@ export default function Index() {
   };
 
   // Show landing page if not authenticated
-  if (!isAuthenticated && !isLoading) {
+  if (!me) {
     return <Landing />;
-  }
-
-  // Show loading state while checking authentication
-  if (isLoading) {
-    return (
-      <Layout>
-        <div className={styles.dashboardContainer}>
-          <div style={{ padding: "2rem", textAlign: "center" }}>
-            <p>Загрузка...</p>
-          </div>
-        </div>
-      </Layout>
-    );
   }
 
   return (

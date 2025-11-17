@@ -24,17 +24,18 @@ import {
   primaryHslParts,
   accentHslParts,
 } from "../../styles/colors";
+import { useMe } from "../../hooks/context";
 
 // Утилита для создания HSL-цвета для Recharts (требуется для градиентов)
 const getHslColor = (h: string, s: string, l: string) => `hsl(${h}, ${s}, ${l})`;
 
 export default function CashFlowChart() {
-  const { isAuthenticated } = useAuth();
+  const me = useMe();
   const [data, setData] = useState<Array<{ date: string; actual: number | null; predicted: number | null }>>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!me) {
       setData([]);
       return;
     }
@@ -107,7 +108,7 @@ export default function CashFlowChart() {
 
     fetchPredictions();
     */
-  }, [isAuthenticated]);
+  }, [me]);
 
   const primaryHslString = getHslColor(primaryHslParts[0], primaryHslParts[1], primaryHslParts[2]);
   const accentHslString = getHslColor(accentHslParts[0], accentHslParts[1], accentHslParts[2]);
