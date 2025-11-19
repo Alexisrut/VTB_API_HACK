@@ -5,6 +5,22 @@ from datetime import datetime
 
 Base = declarative_base()
 
+class BankConfigModel(Base):
+    """Хранение конфигураций банков (глобальные настройки)"""
+    __tablename__ = "bank_configs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    bank_code = Column(String(50), unique=True, nullable=False, index=True)  # vbank, abank, sbank, etc.
+    api_url = Column(String(255), nullable=False)  # https://{bank_code}.open.bankingapi.ru
+    client_id = Column(String(255), nullable=False)
+    client_secret = Column(String(255), nullable=False)
+    requesting_bank = Column(String(100), nullable=False)
+    requesting_bank_name = Column(String(255), nullable=False)
+    redirecting_url = Column(String(255), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 class User(Base):
     __tablename__ = "users"
     

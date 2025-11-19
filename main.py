@@ -68,26 +68,43 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 # CORS - allow frontend origins
+# Default local/cDocker origins
+
+CODESPACE_SLUG = "potential-halibut-6x6jgqgvgpxh5q6x"
+CODESPACE_BASE = f"https://{CODESPACE_SLUG}.github.dev"
+
 allowed_origins = [
     "http://localhost:5173",      # Vite dev server (local)
     "http://127.0.0.1:5173",      # Vite dev server (local)
-    "http://localhost:3000",      # Frontend production (local)
+    "http://localhost:3000",
+    "http://localhost:8000",      # Frontend production (local)
     "http://127.0.0.1:3000",      # Frontend production (local)
     "http://frontend:5173",       # Frontend container (dev)
     "http://frontend:80",         # Frontend container (prod)
+    CODESPACE_BASE,
+    f"https://{CODESPACE_SLUG}-5173.app.github.dev",
+    f"https://{CODESPACE_SLUG}-3000.app.github.dev",
+    f"https://{CODESPACE_SLUG}-8000.app.github.dev",
 ]
 
-# Add custom origins from environment if specified
-if hasattr(settings, 'CORS_ORIGINS') and settings.CORS_ORIGINS:
-    custom_origins = settings.CORS_ORIGINS.split(',')
-    allowed_origins.extend([origin.strip() for origin in custom_origins])
+# Remove duplicates while preserving order
+seen = set()
+allowed_origins = [x for x in allowed_origins if not (x in seen or seen.add(x))]
 
+logger.info(f"CORS allowed origins: {allowed_origins}")
+
+# Configure CORS with more permissive settings for development
+# Note: When allow_credentials=True, allow_origins cannot contain "*" - must be explicit list
+# Using allow_origin_regex to dynamically match all GitHub Codespaces
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=allowed_origins,  # Explicit list of allowed origins
+    allow_origin_regex=r"https://.*\.github\.dev.*",  # Allow all GitHub Codespaces dynamically
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 # Routers
@@ -103,3 +120,30 @@ app.include_router(sync_router)
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+# Explicit OPTIONS handler as fallback for all routes
+@app.api_route("/{full_path:path}", methods=["OPTIONS"])
+async def options_handler(request: Request, full_path: str):
+    """Handle OPTIONS preflight requests explicitly"""
+    origin = request.headers.get("Origin", "")
+    
+    headers = {
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+        "Access-Control-Allow-Headers": request.headers.get("Access-Control-Request-Headers", "*"),
+        "Access-Control-Max-Age": "3600",
+    }
+    
+    # Allow origin if it's in our list or matches GitHub Codespace pattern
+    if origin:
+        if origin in allowed_origins or "github.dev" in origin:
+            headers["Access-Control-Allow-Origin"] = origin
+            headers["Access-Control-Allow-Credentials"] = "true"
+        else:
+            # For any other origin, still allow it (flexible for development)
+            headers["Access-Control-Allow-Origin"] = origin
+    else:
+        headers["Access-Control-Allow-Origin"] = "*"
+    
+    logger.info(f"OPTIONS preflight: {full_path} from origin: {origin}")
+    return JSONResponse(status_code=200, content={}, headers=headers)
+

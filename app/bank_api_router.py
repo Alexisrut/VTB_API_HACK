@@ -1,8 +1,9 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
+import asyncio
 
 from app.database import get_db
 from app.security.oauth2 import get_current_user
@@ -19,11 +20,37 @@ from app.bank_schemas import (
 router = APIRouter(prefix="/api/v1/banks", tags=["Open Banking API"])
 logger = logging.getLogger(__name__)
 
+# ==================== HELPER FUNCTIONS ====================
+
+async def validate_bank_code(bank_code: str, db: AsyncSession) -> None:
+    """
+    Валидировать существование банка
+    
+    Raises:
+        HTTPException: Если банк не найден или недоступен
+    """
+    validation = await universal_bank_service.validate_bank_exists(
+        bank_code=bank_code,
+        db=db
+    )
+    
+    if not validation["exists"]:
+        error_msg = validation.get("error", f"Bank {bank_code} not found or not accessible")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "BANK_NOT_FOUND",
+                "message": error_msg,
+                "bank_code": bank_code,
+                "hint": f"Please add the bank configuration first. Bank {bank_code} is not configured or not accessible."
+            }
+        )
+
 # ==================== ПОЛУЧЕНИЕ СЧЕТОВ ====================
 
 @router.get("/accounts", response_model=GetBankAccountsResponse)
 async def get_user_accounts(
-    bank_code: str = Query(..., description="Код банка: vbank, abank, sbank"),
+    bank_code: str = Query(..., description="Код банка (например: vbank, abank, sbank или любой другой)"),
     user_id: int = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -31,7 +58,7 @@ async def get_user_accounts(
     Получить список счетов пользователя из конкретного банка
     
     **Параметры:**
-    - **bank_code**: Код банка ('vbank', 'abank', 'sbank')
+    - **bank_code**: Код банка (любой поддерживаемый банк)
     
     **Возвращает:**
     - Список счетов с балансами
@@ -39,8 +66,12 @@ async def get_user_accounts(
     **Примечание:**
     - Использует bank_user_id из профиля пользователя, если он установлен
     - Если bank_user_id не установлен, вернет ошибку с инструкцией
+    - Если банк не найден, вернет ошибку с инструкцией по добавлению банка
     """
     try:
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
         logger.info(f"User {user_id} requesting accounts from {bank_code}")
         
         result = await universal_bank_service.get_all_accounts_full_cycle(
@@ -138,23 +169,47 @@ async def get_user_accounts(
 @router.get("/accounts/all")
 async def get_accounts_from_all_banks(
     user_id: int = Depends(get_current_user),
-    banks: Optional[List[str]] = Query(None, description="Список банков (vbank,abank,sbank)"),
+    banks: Optional[List[str]] = Query(None, description="Список кодов банков (например: vbank,abank,sbank)"),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Получить счета из всех банков или выбранных
     
     **Параметры:**
-    - **banks**: Список кодов банков (если не указано - все банки)
+    - **banks**: Список кодов банков (если не указано - все банки пользователя)
     
     **Возвращает:**
     - Счета из каждого банка с флагами успешности
     
     **Примечание:**
     - Использует bank_user_id из профиля пользователя для каждого банка
+    - Если банк не найден, вернет ошибку для этого банка
     """
     try:
         logger.info(f"User {user_id} requesting accounts from multiple banks")
+        
+        # Если banks не указан, получаем список банков пользователя
+        if not banks:
+            from app.models import BankUser
+            from sqlalchemy import select
+            result = await db.execute(
+                select(BankUser.bank_code).where(BankUser.user_id == user_id).distinct()
+            )
+            banks = [row[0] for row in result.all()]
+            
+            if not banks:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No banks configured for user. Please add bank_user_id for at least one bank first."
+                )
+        
+        # Валидируем все банки перед обработкой
+        for bank_code in banks:
+            try:
+                await validate_bank_code(bank_code, db)
+            except HTTPException as e:
+                logger.warning(f"Bank {bank_code} validation failed: {e.detail}")
+                # Продолжаем, но этот банк вернет ошибку в результатах
         
         results = await universal_bank_service.get_accounts_from_all_banks(
             user_id=str(user_id),  # Fallback если нет в БД
@@ -216,8 +271,11 @@ async def get_account_details(
     - **consent_id**: ID согласия
     """
     try:
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
         # Получаем токен банка
-        access_token = await universal_bank_service.get_bank_access_token(bank_code)
+        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
         if not access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -229,7 +287,9 @@ async def get_account_details(
             bank_code=bank_code,
             access_token=access_token,
             account_id=account_id,
-            consent_id=consent_id
+            consent_id=consent_id,
+            db=db,
+            internal_user_id=user_id
         )
         
         if not account_data:
@@ -272,6 +332,9 @@ async def get_account_balances(
     - **consent_id**: ID согласия (опционально, если не указано - будет получен из БД)
     """
     try:
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
         # Если consent_id не указан, получаем его из БД
         if not consent_id:
             from app.models import BankConsent
@@ -294,7 +357,7 @@ async def get_account_balances(
             consent_id = consent.consent_id
             logger.info(f"Using consent_id from DB: {consent_id} for bank {bank_code}")
         
-        access_token = await universal_bank_service.get_bank_access_token(bank_code)
+        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
         if not access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -305,7 +368,9 @@ async def get_account_balances(
             bank_code=bank_code,
             access_token=access_token,
             account_id=account_id,
-            consent_id=consent_id
+            consent_id=consent_id,
+            db=db,
+            internal_user_id=user_id
         )
         
         if not balances_data:
@@ -366,6 +431,9 @@ async def get_account_transactions(
     - Согласие не должно быть истекшим
     """
     try:
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
         from app.models import BankConsent
         from sqlalchemy import select, and_
         from datetime import datetime
@@ -449,7 +517,7 @@ async def get_account_transactions(
         # В нашем случае, мы полагаемся на проверку со стороны банка, так как permissions
         # не хранятся в нашей БД, но должны быть включены при создании согласия.
         
-        access_token = await universal_bank_service.get_bank_access_token(bank_code)
+        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
         if not access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -464,7 +532,9 @@ async def get_account_transactions(
             from_booking_date_time=from_booking_date_time,
             to_booking_date_time=to_booking_date_time,
             page=page,
-            limit=limit
+            limit=limit,
+            db=db,
+            internal_user_id=user_id
         )
         
         if not transactions_data:
@@ -554,6 +624,123 @@ async def get_account_transactions(
 
 # ==================== СОГЛАСИЯ ====================
 
+async def _poll_consent_and_fetch_accounts(
+    bank_code: str,
+    consent_id: str,
+    user_id: int,
+    bank_user_id: str,
+    db: AsyncSession
+):
+    """
+    Фоновая задача для проверки статуса согласия и получения счетов после одобрения
+    """
+    from app.models import BankConsent
+    from sqlalchemy import select, and_
+    from datetime import datetime
+    import asyncio
+    
+    try:
+        max_attempts = 30  # 30 попыток
+        poll_interval = 2  # 2 секунды между попытками
+        
+        for attempt in range(1, max_attempts + 1):
+            await asyncio.sleep(poll_interval)
+            
+            # Получаем доступный токен
+            access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
+            if not access_token:
+                logger.warning(f"[{bank_code}] No access token for consent polling, attempt {attempt}")
+                continue
+            
+            # Проверяем статус согласия
+            consent_details = await universal_bank_service.get_consent_details(
+                bank_code=bank_code,
+                access_token=access_token,
+                consent_id=consent_id,
+                db=db
+            )
+            
+            if not consent_details:
+                logger.warning(f"[{bank_code}] Failed to get consent details, attempt {attempt}")
+                continue
+            
+            # Извлекаем статус
+            status = None
+            if isinstance(consent_details, dict):
+                if "data" in consent_details:
+                    status = consent_details["data"].get("status")
+                else:
+                    status = consent_details.get("status")
+            
+            logger.info(f"[{bank_code}] Consent {consent_id} status check {attempt}/{max_attempts}: {status}")
+            
+            if status in ["approved", "Authorised"]:
+                # Обновляем статус в БД
+                stmt = select(BankConsent).where(
+                    and_(
+                        BankConsent.user_id == user_id,
+                        BankConsent.bank_code == bank_code,
+                        BankConsent.consent_id == consent_id
+                    )
+                )
+                result = await db.execute(stmt)
+                consent = result.scalar_one_or_none()
+                
+                if consent:
+                    consent.status = "approved"
+                    consent.updated_at = datetime.utcnow()
+                    await db.commit()
+                    logger.info(f"[{bank_code}] Consent {consent_id} approved and updated in DB")
+                
+                # Получаем счета
+                try:
+                    accounts_data = await universal_bank_service.get_accounts(
+                        bank_code=bank_code,
+                        access_token=access_token,
+                        user_id=bank_user_id,
+                        consent_id=consent_id,
+                        db=db,
+                        internal_user_id=user_id
+                    )
+                    
+                    if accounts_data and "accounts" in accounts_data:
+                        accounts_count = len(accounts_data["accounts"])
+                        logger.info(f"[{bank_code}] Successfully fetched {accounts_count} accounts after consent approval")
+                    else:
+                        logger.warning(f"[{bank_code}] No accounts returned after consent approval")
+                except Exception as e:
+                    logger.error(f"[{bank_code}] Error fetching accounts after consent approval: {e}")
+                
+                return
+            
+            elif status in ["rejected", "Rejected", "revoked", "Revoked"]:
+                # Обновляем статус в БД
+                stmt = select(BankConsent).where(
+                    and_(
+                        BankConsent.user_id == user_id,
+                        BankConsent.bank_code == bank_code,
+                        BankConsent.consent_id == consent_id
+                    )
+                )
+                result = await db.execute(stmt)
+                consent = result.scalar_one_or_none()
+                
+                if consent:
+                    consent.status = status.lower()
+                    consent.updated_at = datetime.utcnow()
+                    await db.commit()
+                    logger.info(f"[{bank_code}] Consent {consent_id} {status} and updated in DB")
+                
+                return
+            
+            # Если все еще pending, продолжаем проверку
+        
+        logger.warning(f"[{bank_code}] Consent {consent_id} polling timeout after {max_attempts} attempts")
+    
+    except Exception as e:
+        logger.error(f"[{bank_code}] Error in consent polling task: {e}", exc_info=True)
+
+
 @router.post("/account-consents")
 async def create_account_consent(
     bank_code: str = Query(..., description="Код банка"),
@@ -568,7 +755,7 @@ async def create_account_consent(
     Для каждого банка создается отдельное согласие.
     
     **Параметры:**
-    - **bank_code**: Код банка (vbank, abank, sbank)
+    - **bank_code**: Код банка (любой поддерживаемый банк)
     - **permissions**: Список разрешений (опционально)
     
     **Разрешения:**
@@ -577,6 +764,9 @@ async def create_account_consent(
     - ReadTransactionsDetail - доступ к транзакциям (обязательно для получения транзакций)
     """
     try:
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
         from app.models import BankConsent, BankUser
         from sqlalchemy import select, and_
         from datetime import datetime, timedelta
@@ -608,91 +798,95 @@ async def create_account_consent(
             permissions.append("ReadTransactionsDetail")
         
         # Получаем токен банка
-        access_token = await universal_bank_service.get_bank_access_token(bank_code)
+        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
         if not access_token:
+            logger.error(f"[{bank_code}] Failed to obtain access token for consent creation")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to obtain bank token"
+                detail=f"Failed to obtain bank access token for {bank_code}. Please check bank configuration."
             )
+        
+        logger.info(f"[{bank_code}] Access token obtained successfully for consent creation")
         
         # Создаем согласие через API банка
         consent_data = await universal_bank_service.request_account_consent(
             bank_code=bank_code,
             access_token=access_token,
             user_id=bank_user_id,
+            db=db,
+            internal_user_id=user_id,
             permissions=permissions
         )
         
         if not consent_data:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to create consent"
+                detail="Failed to create consent: No response from bank API"
+            )
+        
+        # Check if consent_data contains an error
+        if isinstance(consent_data, dict) and consent_data.get("error"):
+            error_msg = consent_data.get("error_message", "Unknown error")
+            status_code = consent_data.get("status_code", status.HTTP_400_BAD_REQUEST)
+            logger.error(f"[{bank_code}] Consent creation error: {error_msg}")
+            raise HTTPException(
+                status_code=status_code,
+                detail=f"Failed to create consent: {error_msg}"
             )
         
         consent_id = consent_data.get("consent_id")
         consent_status = consent_data.get("status", "approved")
         auto_approved = consent_data.get("auto_approved", True)
-        request_id = consent_data.get("request_id")  # Для pending согласий может быть request_id
         
-        # Если согласие в статусе pending и нет consent_id, используем request_id
-        if consent_status == "pending" and not consent_id and request_id:
-            consent_id = request_id
-            logger.info(f"[{bank_code}] Using request_id as consent_id for pending consent: {request_id}")
-        
-        # Проверяем, что consent_id не None перед сохранением
+        # Проверяем, что consent_id не None
         if not consent_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail={
-                    "error": "CONSENT_ID_MISSING",
-                    "message": f"Согласие создано, но consent_id отсутствует. Статус: {consent_status}. Возможно, требуется ручное одобрение в банке {bank_code}."
-                }
+                detail=f"Согласие создано, но consent_id отсутствует. Статус: {consent_status}."
             )
         
-        # Вычисляем дату истечения (по умолчанию 365 дней)
+        # Вычисляем дату истечения для ответа (по умолчанию 365 дней)
         expires_at = datetime.utcnow() + timedelta(days=365)
         
-        # Проверяем, есть ли уже согласие для этого пользователя и банка
-        # Ищем как approved, так и pending согласия
-        existing_stmt = select(BankConsent).where(
-            and_(
-                BankConsent.user_id == user_id,
-                BankConsent.bank_code == bank_code
-            )
-        ).order_by(BankConsent.created_at.desc())
-        existing_result = await db.execute(existing_stmt)
-        existing_consent = existing_result.scalar_one_or_none()
+        # Примечание: consent уже сохранен в БД внутри request_account_consent
+        # ШАГ 1: consent_id получен от банка
+        # ШАГ 2: consent сохранен в БД с текущим статусом (pending/approved) 
+        # ШАГ 3: если pending, request_account_consent уже делает polling и обновит статус
+        # ШАГ 4: после одобрения, consent обновлен в БД и готов к использованию
         
-        if existing_consent:
-            # Обновляем существующее согласие
-            existing_consent.consent_id = consent_id
-            existing_consent.status = consent_status
-            existing_consent.auto_approved = auto_approved
-            existing_consent.expires_at = expires_at
-            existing_consent.updated_at = datetime.utcnow()
-            await db.commit()
-            await db.refresh(existing_consent)
-            logger.info(f"Updated consent {consent_id} for user {user_id} and bank {bank_code}, status: {consent_status}")
-        else:
-            # Создаем новое согласие
-            new_consent = BankConsent(
-                user_id=user_id,
-                bank_code=bank_code,
-                consent_id=consent_id,
-                status=consent_status,
-                auto_approved=auto_approved,
-                expires_at=expires_at
-            )
-            db.add(new_consent)
-            await db.commit()
-            await db.refresh(new_consent)
-            logger.info(f"Created new consent {consent_id} for user {user_id} and bank {bank_code}, status: {consent_status}")
-        
-        # Формируем сообщение в зависимости от статуса
+        # Если согласие pending, оно уже сохранено и проверяется внутри request_account_consent
+        # Но запускаем дополнительную фоновую задачу на случай, если основной polling завершится с ошибкой
         if consent_status == "pending":
-            message = f"Согласие создано и ожидает одобрения в банке {bank_code}. После одобрения оно будет автоматически активировано."
+            # Запускаем асинхронную задачу для проверки статуса согласия (как backup)
+            asyncio.create_task(
+                _poll_consent_and_fetch_accounts(
+                    bank_code=bank_code,
+                    consent_id=consent_id,
+                    user_id=user_id,
+                    bank_user_id=bank_user_id,
+                    db=db
+                )
+            )
+            message = f"Согласие создано и ожидает одобрения в банке {bank_code}. Проверяю статус..."
         else:
-            message = "Consent created and saved successfully"
+            # Если согласие сразу одобрено, получаем счета
+            try:
+                accounts_data = await universal_bank_service.get_accounts(
+                    bank_code=bank_code,
+                    access_token=access_token,
+                    user_id=bank_user_id,
+                    consent_id=consent_id,
+                    db=db,
+                    internal_user_id=user_id
+                )
+                if accounts_data and "accounts" in accounts_data:
+                    accounts_count = len(accounts_data["accounts"])
+                    message = f"Consent approved. Fetched {accounts_count} account(s)."
+                else:
+                    message = "Consent approved successfully."
+            except Exception as e:
+                logger.error(f"Error fetching accounts after consent approval: {e}")
+                message = "Consent approved. Error fetching accounts - will retry later."
         
         return {
             "success": True,
@@ -723,9 +917,10 @@ async def get_user_consents(
     Получить список всех согласий пользователя
     
     Возвращает все согласия пользователя для всех банков.
+    Также проверяет актуальный статус согласий у банка (для обнаружения удаленных согласий).
     """
     try:
-        from app.models import BankConsent
+        from app.models import BankConsent, BankUser
         from sqlalchemy import select, and_
         
         stmt = select(BankConsent).where(
@@ -735,20 +930,66 @@ async def get_user_consents(
         result = await db.execute(stmt)
         consents = result.scalars().all()
         
+        # Проверяем актуальный статус каждого согласия у банка
+        updated_consents = []
+        for consent in consents:
+            try:
+                # Получаем токен банка
+                access_token = await universal_bank_service.get_bank_access_token(consent.bank_code, db=db)
+                if access_token:
+                    # Проверяем статус согласия у банка
+                    consent_details = await universal_bank_service.get_consent_details(
+                        bank_code=consent.bank_code,
+                        access_token=access_token,
+                        consent_id=consent.consent_id,
+                        db=db
+                    )
+                    
+                    if consent_details:
+                        # Извлекаем статус из ответа банка
+                        bank_status = None
+                        if isinstance(consent_details, dict):
+                            if "data" in consent_details:
+                                bank_status = consent_details["data"].get("status")
+                            else:
+                                bank_status = consent_details.get("status")
+                        
+                        # Если согласие удалено/отозвано на стороне банка, обновляем в БД
+                        if bank_status in ["revoked", "Revoked", "rejected", "Rejected"]:
+                            consent.status = bank_status.lower()
+                            consent.updated_at = datetime.utcnow()
+                            await db.commit()
+                            logger.info(f"[{consent.bank_code}] Consent {consent.consent_id} status updated to {bank_status}")
+                        elif bank_status in ["approved", "Authorised"] and consent.status != "approved":
+                            # Согласие одобрено на стороне банка, обновляем в БД
+                            consent.status = "approved"
+                            consent.updated_at = datetime.utcnow()
+                            await db.commit()
+                            logger.info(f"[{consent.bank_code}] Consent {consent.consent_id} approved and updated in DB")
+                    else:
+                        # Не удалось получить детали - возможно, согласие удалено
+                        logger.warning(f"[{consent.bank_code}] Could not get consent details for {consent.consent_id}, possibly revoked")
+                        if consent.status == "approved":
+                            consent.status = "revoked"
+                            consent.updated_at = datetime.utcnow()
+                            await db.commit()
+                
+            except Exception as e:
+                logger.error(f"Error checking consent {consent.consent_id} status: {e}")
+            
+            updated_consents.append({
+                "consent_id": consent.consent_id,
+                "bank_code": consent.bank_code,
+                "status": consent.status,
+                "auto_approved": consent.auto_approved,
+                "expires_at": consent.expires_at.isoformat() if consent.expires_at else None,
+                "created_at": consent.created_at.isoformat(),
+                "updated_at": consent.updated_at.isoformat()
+            })
+        
         return {
             "success": True,
-            "consents": [
-                {
-                    "consent_id": consent.consent_id,
-                    "bank_code": consent.bank_code,
-                    "status": consent.status,
-                    "auto_approved": consent.auto_approved,
-                    "expires_at": consent.expires_at.isoformat() if consent.expires_at else None,
-                    "created_at": consent.created_at.isoformat(),
-                    "updated_at": consent.updated_at.isoformat()
-                }
-                for consent in consents
-            ]
+            "consents": updated_consents
         }
     
     except Exception as e:
@@ -767,14 +1008,38 @@ async def get_consent_details(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Получить детали согласия
+    Получить детали согласия и проверить актуальный статус у банка
     
     **Параметры:**
     - **consent_id**: ID согласия
     - **bank_code**: Код банка
     """
     try:
-        access_token = await universal_bank_service.get_bank_access_token(bank_code)
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
+        from app.models import BankConsent
+        from sqlalchemy import select, and_
+        from datetime import datetime
+        
+        # Проверяем, что согласие принадлежит пользователю
+        stmt = select(BankConsent).where(
+            and_(
+                BankConsent.consent_id == consent_id,
+                BankConsent.user_id == user_id,
+                BankConsent.bank_code == bank_code
+            )
+        )
+        result = await db.execute(stmt)
+        db_consent = result.scalar_one_or_none()
+        
+        if not db_consent:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Consent not found"
+            )
+        
+        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
         if not access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -784,18 +1049,40 @@ async def get_consent_details(
         consent_data = await universal_bank_service.get_consent_details(
             bank_code=bank_code,
             access_token=access_token,
-            consent_id=consent_id
+            consent_id=consent_id,
+            db=db
         )
         
         if not consent_data:
+            # Согласие не найдено у банка - возможно, удалено
+            db_consent.status = "revoked"
+            db_consent.updated_at = datetime.utcnow()
+            await db.commit()
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Consent not found"
+                detail="Consent not found or revoked at bank"
             )
+        
+        # Извлекаем актуальный статус из ответа банка
+        bank_status = None
+        if isinstance(consent_data, dict):
+            if "data" in consent_data:
+                bank_status = consent_data["data"].get("status")
+            else:
+                bank_status = consent_data.get("status")
+        
+        # Обновляем статус в БД, если изменился
+        if bank_status and bank_status.lower() != db_consent.status:
+            old_status = db_consent.status
+            db_consent.status = bank_status.lower()
+            db_consent.updated_at = datetime.utcnow()
+            await db.commit()
+            logger.info(f"[{bank_code}] Consent {consent_id} status updated from {old_status} to {bank_status.lower()}")
         
         return {
             "success": True,
-            "consent": consent_data
+            "consent": consent_data,
+            "db_status": db_consent.status
         }
     
     except HTTPException:
@@ -823,7 +1110,10 @@ async def delete_consent(
     - **bank_code**: Код банка
     """
     try:
-        access_token = await universal_bank_service.get_bank_access_token(bank_code)
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
+        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
         if not access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -833,7 +1123,8 @@ async def delete_consent(
         success = await universal_bank_service.delete_consent(
             bank_code=bank_code,
             access_token=access_token,
-            consent_id=consent_id
+            consent_id=consent_id,
+            db=db
         )
         
         if not success:
@@ -874,7 +1165,10 @@ async def create_payment_consent(
     - **payment_data**: Данные платежа
     """
     try:
-        access_token = await universal_bank_service.get_bank_access_token(bank_code)
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
+        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
         if not access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -885,7 +1179,8 @@ async def create_payment_consent(
             bank_code=bank_code,
             access_token=access_token,
             user_id=str(user_id),
-            payment_data=payment_data
+            payment_data=payment_data,
+            db=db
         )
         
         if not consent_data:
@@ -926,7 +1221,10 @@ async def initiate_payment(
     - **payment_data**: Данные платежа
     """
     try:
-        access_token = await universal_bank_service.get_bank_access_token(bank_code)
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
+        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
         if not access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -937,7 +1235,8 @@ async def initiate_payment(
             bank_code=bank_code,
             access_token=access_token,
             consent_id=consent_id,
-            payment_data=payment_data
+            payment_data=payment_data,
+            db=db
         )
         
         if not payment_result:
@@ -976,7 +1275,10 @@ async def get_payment_status(
     - **bank_code**: Код банка
     """
     try:
-        access_token = await universal_bank_service.get_bank_access_token(bank_code)
+        # Валидируем существование банка
+        await validate_bank_code(bank_code, db)
+        
+        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
         if not access_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -986,7 +1288,8 @@ async def get_payment_status(
         payment_status = await universal_bank_service.get_payment_status(
             bank_code=bank_code,
             access_token=access_token,
-            payment_id=payment_id
+            payment_id=payment_id,
+            db=db
         )
         
         if not payment_status:
@@ -1013,29 +1316,52 @@ async def get_payment_status(
 # ==================== УТИЛИТЫ ====================
 
 @router.get("/banks/list")
-async def list_available_banks():
+async def list_available_banks(
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Получить список доступных банков
+    Получить список доступных банков (из БД и env)
     """
-    return {
-        "banks": [
-            {
-                "code": "vbank",
-                "name": "Virtual Bank",
-                "url": "https://vbank.open.bankingapi.ru"
-            },
-            {
-                "code": "abank",
-                "name": "Awesome Bank",
-                "url": "https://abank.open.bankingapi.ru"
-            },
-            {
-                "code": "sbank",
-                "name": "Smart Bank",
-                "url": "https://sbank.open.bankingapi.ru"
-            }
-        ]
-    }
+    try:
+        from app.config import get_settings
+        settings = get_settings()
+        
+        # Получаем все банки из конфигурации (БД + env)
+        all_banks = await settings.get_all_banks(db=db)
+        
+        banks_list = []
+        for bank_code, bank_config in all_banks.items():
+            banks_list.append({
+                "code": bank_code,
+                "name": bank_config.requesting_bank_name or f"{bank_code.title()} Bank",
+                "url": bank_config.api_url
+            })
+        
+        return {
+            "banks": banks_list
+        }
+    except Exception as e:
+        logger.error(f"Error getting banks list: {e}")
+        # Fallback на стандартные банки
+        return {
+            "banks": [
+                {
+                    "code": "vbank",
+                    "name": "Virtual Bank",
+                    "url": "https://vbank.open.bankingapi.ru"
+                },
+                {
+                    "code": "abank",
+                    "name": "Awesome Bank",
+                    "url": "https://abank.open.bankingapi.ru"
+                },
+                {
+                    "code": "sbank",
+                    "name": "Smart Bank",
+                    "url": "https://sbank.open.bankingapi.ru"
+                }
+            ]
+        }
 
 
 @router.get("/health")

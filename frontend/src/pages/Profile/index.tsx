@@ -27,6 +27,7 @@ export default function Profile() {
   const [consents, setConsents] = useState<Record<string, BankConsent>>({});
   const [isLoadingConsents, setIsLoadingConsents] = useState(true);
   const [creatingConsent, setCreatingConsent] = useState<Record<string, boolean>>({});
+  const [pollingConsent, setPollingConsent] = useState<Record<string, boolean>>({});
 
   const loadBankUsers = useCallback(async () => {
     try {
@@ -64,6 +65,13 @@ export default function Profile() {
     if (me) {
       loadBankUsers();
       loadConsents();
+      
+      // Периодически проверяем статус согласий (каждые 10 секунд)
+      const consentCheckInterval = setInterval(() => {
+        loadConsents();
+      }, 10000);
+      
+      return () => clearInterval(consentCheckInterval);
     }
   }, [me, loadBankUsers, loadConsents]);
 
@@ -87,10 +95,30 @@ export default function Profile() {
       });
     } catch (error: any) {
       console.error("Error saving bank me:", error);
-      const errorMessage = error.response?.data?.detail || "Ошибка при сохранении ID пользователя";
+      
+      // Handle different error response formats
+      let errorMessage = "Ошибка при сохранении ID пользователя";
+      const errorDetail = error.response?.data?.detail;
+      
+      if (errorDetail) {
+        if (typeof errorDetail === "string") {
+          errorMessage = errorDetail;
+        } else if (typeof errorDetail === "object") {
+          // Handle object format: {error, message, bank_code}
+          errorMessage = errorDetail.message || errorDetail.error || JSON.stringify(errorDetail);
+        } else if (Array.isArray(errorDetail)) {
+          // Handle validation errors array
+          errorMessage = errorDetail.map((err: any) => 
+            err.msg || err.message || JSON.stringify(err)
+          ).join(", ");
+        }
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
       toast.error("Не удалось сохранить ID пользователя", {
         description: errorMessage,
-        duration: 1500,
+        duration: 3000,
       });
     } finally {
       setSaving((prev) => ({ ...prev, [bankCode]: false }));
@@ -162,10 +190,22 @@ export default function Profile() {
         [bankCode]: newConsent,
       }));
       
-      toast.success(`Согласие для ${bankNames[bankCode]} создано`, {
-        description: `ID: ${response.data.consent_id}`,
-        duration: 2000,
-      });
+      // Если согласие pending, запускаем опрос статуса
+      if (response.data.status === "pending") {
+        setPollingConsent((prev) => ({ ...prev, [bankCode]: true }));
+        toast.info(`Согласие для ${bankNames[bankCode]} создано`, {
+          description: "Ожидание одобрения... Проверяю статус...",
+          duration: 3000,
+        });
+        
+        // Запускаем опрос статуса согласия
+        pollConsentStatus(bankCode, response.data.consent_id);
+      } else {
+        toast.success(`Согласие для ${bankNames[bankCode]} создано`, {
+          description: response.data.message || `ID: ${response.data.consent_id}`,
+          duration: 2000,
+        });
+      }
     } catch (error: any) {
       console.error("Error creating consent:", error);
       const errorMessage = error.response?.data?.detail || "Ошибка при создании согласия";
@@ -176,6 +216,64 @@ export default function Profile() {
     } finally {
       setCreatingConsent((prev) => ({ ...prev, [bankCode]: false }));
     }
+  };
+
+  const pollConsentStatus = async (bankCode: string, consentId: string) => {
+    const maxAttempts = 100; // 30 попыток
+    const pollInterval = 2000; // 2 секунды
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      
+      try {
+        // Перезагружаем согласия для получения актуального статуса
+        const response = await getUserConsents();
+        const consentsMap: Record<string, BankConsent> = {};
+        (response.data.consents || []).forEach((consent: BankConsent) => {
+          consentsMap[consent.bank_code] = consent;
+          setCookie(`consent_${consent.bank_code}`, consent.consent_id, 365);
+        });
+        setConsents(consentsMap);
+        
+        const consent = consentsMap[bankCode];
+        if (consent && consent.status === "approved") {
+          setPollingConsent((prev) => {
+            const newPolling = { ...prev };
+            delete newPolling[bankCode];
+            return newPolling;
+          });
+          toast.success(`Согласие для ${bankNames[bankCode]} одобрено!`, {
+            description: "Счета успешно загружены",
+            duration: 3000,
+          });
+          return;
+        } else if (consent && (consent.status === "revoked" || consent.status === "rejected")) {
+          setPollingConsent((prev) => {
+            const newPolling = { ...prev };
+            delete newPolling[bankCode];
+            return newPolling;
+          });
+          toast.error(`Согласие для ${bankNames[bankCode]} отклонено`, {
+            description: `Статус: ${consent.status}`,
+            duration: 3000,
+          });
+          return;
+        }
+      } catch (error) {
+        console.error(`Error polling consent status (attempt ${attempt}):`, error);
+      }
+    }
+    
+    // Timeout
+    setPollingConsent((prev) => {
+      const newPolling = { ...prev };
+      delete newPolling[bankCode];
+      return newPolling;
+    });
+    toast.warning(`Превышено время ожидания одобрения согласия для ${bankNames[bankCode]}`, {
+      description: "Проверьте статус вручную",
+      duration: 3000,
+    });
   };
 
   const handleLogout = () => {
@@ -330,10 +428,28 @@ export default function Profile() {
                         <Label className={styles.consentLabel}>
                           {bankNames[bankCode]}
                         </Label>
-                        {consent && consent.status === "approved" && (
+                        {consent && (
                           <div className={styles.consentStatus}>
-                            <CheckCircle2 size={16} className={styles.consentStatusIcon} />
-                            <span>Активно</span>
+                            {consent.status === "approved" && (
+                              <>
+                                <CheckCircle2 size={16} className={styles.consentStatusIcon} />
+                                <span>Активно</span>
+                              </>
+                            )}
+                            {consent.status === "pending" && (
+                              <>
+                                <div className={styles.spinner} />
+                                <span>Ожидание одобрения...</span>
+                              </>
+                            )}
+                            {(consent.status === "revoked" || consent.status === "rejected") && (
+                              <>
+                                <span style={{ color: "#ef4444" }}>●</span>
+                                <span style={{ color: "#ef4444" }}>
+                                  {consent.status === "revoked" ? "Отозвано" : "Отклонено"}
+                                </span>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -355,13 +471,25 @@ export default function Profile() {
                             )}
                             <div className={styles.consentDetail}>
                               <span className={styles.consentDetailLabel}>Статус:</span>
-                              <span className={styles.consentDetailValue}>{consent.status}</span>
+                              <span className={styles.consentDetailValue}>
+                                {consent.status === "approved" && "Одобрено"}
+                                {consent.status === "pending" && "Ожидание одобрения"}
+                                {consent.status === "revoked" && "Отозвано"}
+                                {consent.status === "rejected" && "Отклонено"}
+                                {!["approved", "pending", "revoked", "rejected"].includes(consent.status) && consent.status}
+                              </span>
                             </div>
                           </div>
+                          {pollingConsent[bankCode] && (
+                            <div className={styles.consentPolling}>
+                              <div className={styles.spinner} />
+                              <span>Проверяю статус согласия...</span>
+                            </div>
+                          )}
                           <Button
                             size="sm"
                             onClick={() => handleCreateConsent(bankCode)}
-                            disabled={creatingConsent[bankCode] || !hasBankUser}
+                            disabled={creatingConsent[bankCode] || !hasBankUser || pollingConsent[bankCode]}
                             className={styles.createConsentButton}
                           >
                             <Shield size={16} />
@@ -410,4 +538,5 @@ export default function Profile() {
     </Layout>
   );
 }
+
 

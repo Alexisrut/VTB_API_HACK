@@ -1,14 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from pydantic import BaseModel
-from typing import Dict
-from app.models import User, BankUser
+from pydantic import BaseModel, field_validator
+from typing import Dict, Optional
+from app.models import User, BankUser, BankConfigModel
 from app.schemas import UserResponse
 from app.database import get_db
 from app.security.oauth2 import get_current_user
+from app.services.universal_bank_service import universal_bank_service
+import logging
 
 router = APIRouter(prefix="/users", tags=["users"])
+logger = logging.getLogger(__name__)
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(
@@ -74,6 +77,13 @@ async def logout(
 class BankUserCreate(BaseModel):
     bank_code: str
     bank_user_id: str
+    
+    @field_validator("bank_code", "bank_user_id")
+    @classmethod
+    def validate_not_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Field cannot be empty")
+        return v.strip()
 
 
 class BankUserResponse(BaseModel):
@@ -119,15 +129,51 @@ async def save_bank_user(
     user_id: int = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Сохранить или обновить bank_user_id для банка"""
+    """
+    Сохранить или обновить bank_user_id для банка
+    
+    Валидирует существование банка перед добавлением.
+    Если банк не найден, возвращает ошибку.
+    """
     try:
-        # Проверяем валидность bank_code
-        valid_banks = ["vbank", "abank", "sbank"]
-        if bank_user_data.bank_code not in valid_banks:
+        # Валидируем существование банка
+        validation = await universal_bank_service.validate_bank_exists(
+            bank_code=bank_user_data.bank_code,
+            db=db
+        )
+        
+        if not validation["exists"]:
+            error_msg = validation.get("error", f"Bank {bank_user_data.bank_code} not found or not accessible")
+            logger.error(f"Bank validation failed for {bank_user_data.bank_code}: {error_msg}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid bank_code. Must be one of: {', '.join(valid_banks)}"
+                detail=error_msg  # Return string instead of dict for better error handling
             )
+        
+        # Если банк валиден, убеждаемся что конфигурация банка есть в БД
+        bank_config = validation.get("config")
+        if bank_config:
+            # Проверяем, есть ли конфигурация в БД
+            config_result = await db.execute(
+                select(BankConfigModel).where(BankConfigModel.bank_code == bank_user_data.bank_code)
+            )
+            db_config = config_result.scalar_one_or_none()
+            
+            if not db_config:
+                # Создаем конфигурацию банка в БД
+                new_bank_config = BankConfigModel(
+                    bank_code=bank_user_data.bank_code,
+                    api_url=bank_config.api_url,
+                    client_id=bank_config.client_id,
+                    client_secret=bank_config.client_secret,
+                    requesting_bank=bank_config.requesting_bank,
+                    requesting_bank_name=bank_config.requesting_bank_name,
+                    redirecting_url=bank_config.redirecting_url,
+                    is_active=True
+                )
+                db.add(new_bank_config)
+                await db.flush()
+                logger.info(f"Created bank config for {bank_user_data.bank_code}")
         
         # Проверяем существование записи
         result = await db.execute(
@@ -185,8 +231,11 @@ async def delete_bank_user(
     user_id: int = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Удалить bank_user_id для банка"""
+    """Удалить bank_user_id для банка и связанные согласия"""
     try:
+        from app.models import BankConsent
+        from sqlalchemy import delete as sql_delete, and_
+        
         result = await db.execute(
             select(BankUser).where(
                 BankUser.user_id == user_id,
@@ -201,10 +250,21 @@ async def delete_bank_user(
                 detail=f"Bank user not found for bank_code: {bank_code}"
             )
         
+        # Удаляем связанные согласия для этого банка
+        consent_delete_stmt = sql_delete(BankConsent).where(
+            and_(
+                BankConsent.user_id == user_id,
+                BankConsent.bank_code == bank_code
+            )
+        )
+        await db.execute(consent_delete_stmt)
+        logger.info(f"Deleted consents for user {user_id} and bank {bank_code}")
+        
+        # Удаляем bank_user
         await db.delete(bank_user)
         await db.commit()
         
-        return {"message": f"Bank user for {bank_code} deleted successfully"}
+        return {"message": f"Bank user and associated consents for {bank_code} deleted successfully"}
     except HTTPException:
         raise
     except Exception as e:

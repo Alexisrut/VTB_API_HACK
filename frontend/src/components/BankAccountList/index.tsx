@@ -59,41 +59,6 @@ export default function BankAccountsList() {
       return;
     }
 
-    // Используем захардкоженные данные для демонстрации
-    const mockAccounts: AccountDisplay[] = [
-      {
-        bank: "Vbank",
-        balance: 1250000,
-        currency: "₽",
-        lastSync: "только что",
-        status: "active",
-        accountId: "vtb-account-1",
-      },
-      {
-        bank: "Abank",
-        balance: 850000,
-        currency: "₽",
-        lastSync: "только что",
-        status: "active",
-        accountId: "sber-account-1",
-      },
-      {
-        bank: "Sbank",
-        balance: 350000,
-        currency: "₽",
-        lastSync: "только что",
-        status: "active",
-        accountId: "alpha-account-1",
-      },
-    ];
-
-    setTimeout(() => {
-      setAccounts(mockAccounts);
-      setLastSyncTime(new Date());
-      setIsLoading(false);
-    }, 400);
-
-    /* Закомментирован реальный API вызов
     const fetchAccounts = async () => {
       try {
         setIsLoading(true);
@@ -202,7 +167,6 @@ export default function BankAccountsList() {
     };
 
     fetchAccounts();
-    */
   }, [me]);
 
   if (!me) {

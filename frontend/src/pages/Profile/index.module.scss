@@ -221,3 +221,87 @@
   border-top: 1px solid $border;
 }
 
+.consentStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: $success;
+  margin-left: auto;
+}
+
+.consentStatusIcon {
+  color: $success;
+}
+
+.consentInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.consentDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.consentDetail {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.875rem;
+}
+
+.consentDetailLabel {
+  color: $muted-foreground;
+}
+
+.consentDetailValue {
+  color: $foreground;
+  font-weight: 500;
+}
+
+.consentEmpty {
+  padding: 1rem;
+  background: $secondary;
+  border-radius: $radius-sm;
+  border: 1px dashed $border;
+  text-align: center;
+  color: $muted-foreground;
+  font-size: 0.875rem;
+}
+
+.createConsentButton {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.consentPolling {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: $secondary;
+  border-radius: $radius-sm;
+  font-size: 0.875rem;
+  color: $primary;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid $border;
+  border-top-color: $primary;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

@@ -78,7 +78,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      VITE_API_URL: ${VITE_API_URL:-https://potential-halibut-6x6jgqgvgpxh5q6x-8000.app.github.dev}
     volumes:
       - ./frontend:/app
       - /app/node_modules

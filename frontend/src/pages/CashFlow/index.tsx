@@ -1,38 +1,61 @@
-import Layout from "../../components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
-import { TrendingUp, AlertTriangle } from "lucide-react";
+import { Badge } from "../../ui/badge";
+import { Button } from "../../ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../ui/table";
 import { useEffect, useState } from "react";
-import { getCashFlowPredictions, getCashFlowGaps, type CashFlowPrediction, type CashFlowGap } from "../../utils/api";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  ReferenceLine,
-} from "recharts";
+import { getAllBankAccounts, getAccountTransactions, getAccountBalances, getAccountId, type BankAccount, type BankTransaction } from "../../utils/api";
 import styles from "./index.module.scss";
-import {
-  primary,
-  accent,
-  danger,
-  border,
-  muted_foreground,
-  popover,
-  primaryHslParts,
-  accentHslParts,
-} from "../../styles/colors";
-import { toast } from "sonner";
+import { Phone } from "lucide-react";
 import { useMe } from "../../hooks/context";
 
-const getHslColor = (h: string, s: string, l: string) => `hsl(${h}, ${s}, ${l})`;
+interface Receivable {
+  id: string;
+  counterparty: string;
+  amount: number;
+  dueDate: string;
+  status: "pending" | "overdue" | "received";
+  transactionId?: string;
+}
 
-export default function CashFlow() {
+const bankNames: { [key: string]: string } = {
+  vbank: "Virtual Bank",
+  abank: "Awesome Bank",
+  sbank: "Smart Bank",
+};
+
+function formatDate(dateString?: string): string {
+  if (!dateString) return "—";
+  try {
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, "0");
+    const month = (date.getMonth() + 1).toString().padStart(2, "0");
+    return `${day}.${month}`;
+  } catch {
+    return "—";
+  }
+}
+
+function isOverdue(dateString?: string): boolean {
+  if (!dateString) return false;
+  try {
+    const date = new Date(dateString);
+    const now = new Date();
+    return date < now;
+  } catch {
+    return false;
+  }
+}
+
+export default function ReceivablesTable() {
   const me = useMe();
-  const [predictions, setPredictions] = useState<CashFlowPrediction["predictions"]>([]);
-  const [gaps, setGaps] = useState<CashFlowGap["gaps"]>([]);
+  const [receivables, setReceivables] = useState<Receivable[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,245 +65,250 @@ export default function CashFlow() {
       return;
     }
 
-    // Используем захардкоженные данные для демонстрации
-    const today = new Date();
-    const mockPredictions = [
-      {
-        prediction_date: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        predicted_balance: 1250000,
-        predicted_inflow: 850000,
-        predicted_outflow: 620000,
-        confidence: 0.85,
-      },
-      {
-        prediction_date: new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-        predicted_balance: 980000,
-        predicted_inflow: 720000,
-        predicted_outflow: 990000,
-        confidence: 0.78,
-      },
-      {
-        prediction_date: new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString(),
-        predicted_balance: -120000,
-        predicted_inflow: 450000,
-        predicted_outflow: 1550000,
-        confidence: 0.72,
-      },
-      {
-        prediction_date: new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000).toISOString(),
-        predicted_balance: 340000,
-        predicted_inflow: 1200000,
-        predicted_outflow: 740000,
-        confidence: 0.68,
-      },
-    ];
-
-    const mockGaps = [
-      {
-        date: new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000).toISOString(),
-        gap_amount: -120000,
-        probability: 72.5,
-        severity: "Средняя",
-      },
-      {
-        date: new Date(today.getTime() + 19 * 24 * 60 * 60 * 1000).toISOString(),
-        gap_amount: -45000,
-        probability: 58.3,
-        severity: "Низкая",
-      },
-    ];
-
-    // Имитируем задержку загрузки
-    setTimeout(() => {
-      setPredictions(mockPredictions);
-      setGaps(mockGaps);
-      setIsLoading(false);
-    }, 500);
-
-    /* Закомментирован реальный API вызов
-    const fetchData = async () => {
+    const fetchReceivables = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        const [predictionsRes, gapsRes] = await Promise.all([
-          getCashFlowPredictions(4),
-          getCashFlowGaps(4),
-        ]);
+        // Сначала получаем все счета
+        console.log("[ReceivablesTable] Fetching accounts...");
+        const accountsResponse = await getAllBankAccounts();
+        const accountsData = accountsResponse.data;
+        
+        console.log("[ReceivablesTable] Accounts response:", accountsData);
 
-        if (predictionsRes.data.success && predictionsRes.data.predictions) {
-          setPredictions(predictionsRes.data.predictions);
+        if (!accountsData.success) {
+          throw new Error("Не удалось получить счета");
         }
 
-        if (gapsRes.data.success && gapsRes.data.gaps) {
-          setGaps(gapsRes.data.gaps);
-        }
+        const receivablesList: Receivable[] = [];
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const fromDate = thirtyDaysAgo.toISOString().split("T")[0];
+        const toDate = now.toISOString().split("T")[0];
+
+        // Получаем транзакции и балансы из всех счетов
+        const transactionPromises: Promise<void>[] = [];
+
+        Object.entries(accountsData.banks || {}).forEach(([bankCode, bankData]) => {
+          console.log(`[ReceivablesTable] Processing bank ${bankCode}:`, bankData);
+          
+          if (bankData.success && bankData.accounts && bankData.accounts.length > 0) {
+            console.log(`[ReceivablesTable] Bank ${bankCode} has ${bankData.accounts.length} accounts`);
+            bankData.accounts.forEach((account) => {
+              // Получаем account_id используя унифицированную функцию
+              const accountId = getAccountId(account);
+              
+              if (!accountId) {
+                console.warn(`[ReceivablesTable] Skipping account without account_id:`, account);
+                return;
+              }
+              
+              console.log(`[ReceivablesTable] Fetching transactions for account ${accountId} from ${bankCode}`);
+              
+              // Получаем баланс счета (сервер автоматически использует сохраненный consent_id)
+              const balancePromise = getAccountBalances(
+                accountId,
+                bankCode,
+                bankData.consent_id // опционально, сервер получит из БД если не указано
+              )
+                .then((response) => {
+                  console.log(`[ReceivablesTable] Balance for account ${accountId}:`, response.data);
+                  // Здесь можно обработать баланс, например, сохранить в состояние или отобразить
+                })
+                .catch((err) => {
+                  console.error(`[ReceivablesTable] Error fetching balance for account ${accountId}:`, err);
+                  console.error(`[ReceivablesTable] Error details:`, {
+                    message: err.message,
+                    response: err.response?.data,
+                    status: err.response?.status,
+                  });
+                });
+              
+              transactionPromises.push(balancePromise);
+              
+              // Сервер автоматически использует сохраненный consent_id
+              const promise = getAccountTransactions(
+                accountId,
+                bankCode,
+                undefined, // consent_id не передаем - сервер использует сохраненный
+                fromDate,
+                toDate
+              )
+                .then((response) => {
+                  const transactions = response.data.transactions || [];
+                  console.log(`[ReceivablesTable] Received ${transactions.length} transactions for account ${accountId}`);
+                  
+                  // Фильтруем входящие транзакции (Credit)
+                  // Берем только первые 5 с каждого банка
+                  const creditTransactions = transactions
+                    .filter((tx) => {
+                      const indicator = tx.transaction_type || tx.creditDebitIndicator;
+                      return indicator === "Credit";
+                    })
+                    .slice(0, 5); // Ограничиваем до 5 транзакций с каждого банка
+                  
+                  creditTransactions.forEach((tx) => {
+                    // Извлекаем сумму из нового формата
+                    const amount = tx.amount || 0;
+                    
+                    // Используем название банка вместо контрагента
+                    const counterparty = bankNames[bankCode] || bankCode;
+                    
+                    // Извлекаем дату
+                    const bookingDate = tx.booking_date || tx.bookingDateTime || tx.value_date || tx.valueDateTime;
+                    const status = bookingDate && isOverdue(bookingDate) 
+                      ? "overdue" 
+                      : bookingDate 
+                      ? "pending" 
+                      : "received";
+
+                    receivablesList.push({
+                      id: tx.transaction_id || tx.transactionId || `${accountId}-${tx.transactionReference || Date.now()}`,
+                      counterparty,
+                      amount,
+                      dueDate: formatDate(bookingDate),
+                      status: status as "pending" | "overdue" | "received",
+                      transactionId: tx.transaction_id || tx.transactionId,
+                    });
+                  });
+                })
+                .catch((err) => {
+                  console.error(`[ReceivablesTable] Error fetching transactions for account ${accountId}:`, err);
+                  console.error(`[ReceivablesTable] Error details:`, {
+                    message: err.message,
+                    response: err.response?.data,
+                    status: err.response?.status,
+                  });
+                });
+              
+              transactionPromises.push(promise);
+            });
+          } else {
+            console.warn(`[ReceivablesTable] Bank ${bankCode} has no accounts or failed:`, bankData.error || "No accounts");
+          }
+        });
+
+        console.log(`[ReceivablesTable] Waiting for ${transactionPromises.length} transaction requests...`);
+        await Promise.all(transactionPromises);
+        console.log(`[ReceivablesTable] Found ${receivablesList.length} receivables`);
+
+        // Сортируем по дате (новые сначала)
+        receivablesList.sort((a, b) => {
+          if (a.dueDate === "—" && b.dueDate === "—") return 0;
+          if (a.dueDate === "—") return 1;
+          if (b.dueDate === "—") return -1;
+          return b.dueDate.localeCompare(a.dueDate);
+        });
+
+        setReceivables(receivablesList);
       } catch (err: any) {
-        console.error("Error fetching cash flow data:", err);
-        setError(err.response?.data?.detail || "Ошибка загрузки данных");
-        toast.error("Не удалось загрузить прогноз денежного потока");
+        console.error("Error fetching receivables:", err);
+        setError(err.response?.data?.detail || err.message || "Ошибка загрузки данных");
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchData();
-    */
+    fetchReceivables();
   }, [me]);
 
-  const primaryHslString = getHslColor(primaryHslParts[0], primaryHslParts[1], primaryHslParts[2]);
-  const accentHslString = getHslColor(accentHslParts[0], accentHslParts[1], accentHslParts[2]);
-
-  const chartData = predictions?.map((p) => ({
-    date: new Date(p.prediction_date).toLocaleDateString("ru-RU", { day: "2-digit", month: "short" }),
-    predicted: p.predicted_balance,
-    inflow: p.predicted_inflow,
-    outflow: p.predicted_outflow,
-  })) || [];
+  const getStatusBadge = (status: string) => {
+    if (status === "overdue") {
+      return (
+        <Badge className={styles.badgeOverdue}>
+          Overdue
+        </Badge>
+      );
+    }
+    if (status === "received") {
+      return (
+        <Badge className={styles.badgePending} style={{ backgroundColor: "#10b981" }}>
+          Received
+        </Badge>
+      );
+    }
+    return (
+      <Badge className={styles.badgePending}>
+        Pending
+      </Badge>
+    );
+  };
 
   if (!me) {
     return (
-      <Layout>
-        <Card className={styles.card}>
-          <CardHeader>
-            <CardTitle>Cash Flow прогноз</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Войдите, чтобы увидеть прогноз денежного потока</p>
-          </CardContent>
-        </Card>
-      </Layout>
+      <Card className={styles.cardRoot}>
+        <CardHeader className={styles.header}>
+          <div className={styles.iconBox} aria-hidden>
+            <svg className="h-5 w-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div className={styles.headerText}>
+            <CardTitle className={styles.title}>Выплаты</CardTitle>
+            <p className={styles.subtitle}>Войдите, чтобы увидеть входящие платежи</p>
+          </div>
+        </CardHeader>
+      </Card>
     );
   }
 
   return (
-    <Layout>
-      <div className={styles.container}>
-        <div className={styles.header}>
-          <h1>Cash Flow прогноз</h1>
-          <p>Прогнозирование денежного потока на следующие 4 недели</p>
+    <Card className={styles.cardRoot}>
+      <CardHeader className={styles.header}>
+        <div className={styles.iconBox} aria-hidden>
+          <svg className="h-5 w-5 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
         </div>
-
+        <div className={styles.headerText}>
+          <CardTitle className={styles.title}>Выплаты</CardTitle>
+          <p className={styles.subtitle}>Отслеживайте входящие платежи и управляйте ими</p>
+        </div>
+      </CardHeader>
+      <CardContent className={styles.content}>
         {isLoading ? (
-          <Card>
-            <CardContent style={{ padding: "2rem", textAlign: "center" }}>
-              <p>Загрузка данных...</p>
-            </CardContent>
-          </Card>
+          <div style={{ padding: "2rem", textAlign: "center" }}>
+            <p>Загрузка данных...</p>
+          </div>
         ) : error ? (
-          <Card>
-            <CardContent style={{ padding: "2rem", textAlign: "center", color: "#ef4444" }}>
-              <p>{error}</p>
-            </CardContent>
-          </Card>
-        ) : chartData.length === 0 ? (
-          <Card>
-            <CardContent style={{ padding: "2rem", textAlign: "center" }}>
-              <p>Нет данных для отображения</p>
-              <p style={{ fontSize: "0.875rem", marginTop: "0.5rem", color: muted_foreground }}>
-                Подключите банковские счета для получения прогноза
-              </p>
-            </CardContent>
-          </Card>
+          <div style={{ padding: "2rem", textAlign: "center", color: "#ef4444" }}>
+            <p>{error}</p>
+          </div>
+        ) : receivables.length === 0 ? (
+          <div style={{ padding: "2rem", textAlign: "center" }}>
+            <p>Нет входящих платежей за последние 30 дней</p>
+          </div>
         ) : (
-          <>
-            <Card className={styles.chartCard}>
-              <CardHeader>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <TrendingUp className={styles.icon} />
-                  <div>
-                    <CardTitle>Прогноз баланса</CardTitle>
-                    <p style={{ fontSize: "0.875rem", color: muted_foreground, marginTop: "0.25rem" }}>
-                      Прогнозируемый баланс на следующие 4 недели
-                    </p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={320}>
-                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={accentHslString} stopOpacity={0.4} />
-                        <stop offset="95%" stopColor={accentHslString} stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke={border} opacity={0.3} />
-                    <XAxis
-                      dataKey="date"
-                      stroke={muted_foreground}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={{ stroke: border }}
-                    />
-                    <YAxis
-                      stroke={muted_foreground}
-                      fontSize={12}
-                      tickLine={false}
-                      axisLine={{ stroke: border }}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: popover,
-                        border: `1px solid ${border}`,
-                        borderRadius: "12px",
-                      }}
-                      formatter={(value: number) => [`₽${value.toLocaleString()}`, ""]}
-                    />
-                    <ReferenceLine y={0} stroke={danger} strokeDasharray="5 5" strokeWidth={2} />
-                    <Area
-                      type="monotone"
-                      dataKey="predicted"
-                      stroke={accent}
-                      strokeWidth={3}
-                      strokeDasharray="8 4"
-                      fillOpacity={1}
-                      fill="url(#colorPredicted)"
-                      name="Прогноз"
-                      dot={{ fill: accent, r: 4 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {gaps && gaps.length > 0 && (
-              <Card className={styles.gapsCard}>
-                <CardHeader>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <AlertTriangle className={styles.icon} style={{ color: danger }} />
-                    <div>
-                      <CardTitle>Потенциальные кассовые разрывы</CardTitle>
-                      <p style={{ fontSize: "0.875rem", color: muted_foreground, marginTop: "0.25rem" }}>
-                        Даты с высоким риском недостатка средств
-                      </p>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className={styles.gapsList}>
-                    {gaps.map((gap, index) => (
-                      <div key={index} className={styles.gapItem}>
-                        <div>
-                          <p className={styles.gapDate}>{new Date(gap.date).toLocaleDateString("ru-RU")}</p>
-                          <p className={styles.gapAmount}>₽{gap.gap_amount.toLocaleString()}</p>
-                        </div>
-                        <div className={styles.gapMeta}>
-                          <span className={styles.gapProbability}>
-                            Вероятность: {gap.probability.toFixed(1)}%
-                          </span>
-                          <span className={styles.gapSeverity}>{gap.severity}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </>
+          <div className={styles.tableWrap}>
+            <Table>
+              <TableHeader>
+                <TableRow className={styles.tableRow}>
+                  <TableHead className={styles.counterparty}>Банк</TableHead>
+                  <TableHead className={styles.amount}>Сумма</TableHead>
+                  <TableHead className={styles.dueDate}>Дата</TableHead>
+                  <TableHead>Статус</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {receivables.map((item) => (
+                  <TableRow key={item.id} className={`${styles.tableRow} ${styles.tableRowHover}`}>
+                    <TableCell className={styles.counterparty}>{item.counterparty}</TableCell>
+                    <TableCell className={styles.amount}>
+                      ₽{item.amount.toLocaleString("ru-RU", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </TableCell>
+                    <TableCell className={styles.dueDate}>{item.dueDate}</TableCell>
+                    <TableCell>{getStatusBadge(item.status)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
-      </div>
-    </Layout>
+      </CardContent>
+    </Card>
   );
 }
-

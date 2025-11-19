@@ -24,7 +24,9 @@ export interface UserResponse {
   is_active: boolean;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "https://potential-halibut-6x6jgqgvgpxh5q6x-8000.app.github.dev";
 
 const api = axios.create({
   baseURL: API_URL,
