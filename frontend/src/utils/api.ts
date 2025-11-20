@@ -413,8 +413,8 @@ export const getAccountTransactions = (
     params.append("consent_id", effectiveConsentId);
   }
 
-  if (fromDate) params.append("from_date", fromDate);
-  if (toDate) params.append("to_date", toDate);
+  if (fromDate) params.append("from_booking_date_time", fromDate);
+  if (toDate) params.append("to_booking_date_time", toDate);
 
   return api.get<BankTransactionsResponse>(
     `/api/v1/banks/accounts/${accountId}/transactions?${params.toString()}`
