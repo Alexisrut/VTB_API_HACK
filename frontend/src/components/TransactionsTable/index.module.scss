@@ -1,0 +1,55 @@
+.tableWrap {
+  overflow-x: auto;
+}
+
+.description {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.typeIncome,
+.typeExpense {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.typeIncome {
+  color: #10b981;
+}
+
+.typeExpense {
+  color: #ef4444;
+}
+
+.amountIncome {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.amountExpense {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.status {
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.375rem;
+  font-size: 0.75rem;
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+}
+
+.message {
+  padding: 2rem;
+  text-align: center;
+}
+
+.error {
+  composes: message;
+  color: #ef4444;
+}
+

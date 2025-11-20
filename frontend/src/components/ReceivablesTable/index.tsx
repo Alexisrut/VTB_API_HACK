@@ -1,61 +1,24 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
-import { Badge } from "../../ui/badge";
-import { Button } from "../../ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../../ui/table";
 import { useEffect, useState } from "react";
-import { getAllBankAccounts, getAccountTransactions, getAccountBalances, getAccountId, type BankAccount, type BankTransaction } from "../../utils/api";
+import { getAllBankAccounts, getAccountTransactions, getAccountId, type BankTransaction } from "../../utils/api";
 import styles from "./index.module.scss";
-import { Phone } from "lucide-react";
 import { useMe } from "../../hooks/context";
+import TransactionsTable from "../TransactionsTable";
 
-interface Receivable {
-  id: string;
-  counterparty: string;
-  amount: number;
-  dueDate: string;
-  status: "pending" | "overdue" | "received";
-  transactionId?: string;
-}
+type DashboardTransaction = BankTransaction & {
+  bankName?: string;
+  bankCode?: string;
+};
 
-const bankNames: { [key: string]: string } = {
+const bankNames: Record<string, string> = {
   vbank: "Virtual Bank",
   abank: "Awesome Bank",
   sbank: "Smart Bank",
 };
 
-function formatDate(dateString?: string): string {
-  if (!dateString) return "—";
-  try {
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, "0");
-    const month = (date.getMonth() + 1).toString().padStart(2, "0");
-    return `${day}.${month}`;
-  } catch {
-    return "—";
-  }
-}
-
-function isOverdue(dateString?: string): boolean {
-  if (!dateString) return false;
-  try {
-    const date = new Date(dateString);
-    const now = new Date();
-    return date < now;
-  } catch {
-    return false;
-  }
-}
-
 export default function ReceivablesTable() {
   const me = useMe();
-  const [receivables, setReceivables] = useState<Receivable[]>([]);
+  const [transactions, setTransactions] = useState<DashboardTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -128,145 +91,79 @@ export default function ReceivablesTable() {
         setIsLoading(true);
         setError(null);
 
-        // Сначала получаем все счета
-        console.log("[ReceivablesTable] Fetching accounts...");
         const accountsResponse = await getAllBankAccounts();
         const accountsData = accountsResponse.data;
-        
-        console.log("[ReceivablesTable] Accounts response:", accountsData);
 
         if (!accountsData.success) {
           throw new Error("Не удалось получить счета");
         }
 
-        const receivablesList: Receivable[] = [];
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const fromDate = thirtyDaysAgo.toISOString().split("T")[0];
         const toDate = now.toISOString().split("T")[0];
 
-        // Получаем транзакции и балансы из всех счетов
+        const collected: DashboardTransaction[] = [];
         const transactionPromises: Promise<void>[] = [];
 
         Object.entries(accountsData.banks || {}).forEach(([bankCode, bankData]) => {
-          console.log(`[ReceivablesTable] Processing bank ${bankCode}:`, bankData);
-          
-          if (bankData.success && bankData.accounts && bankData.accounts.length > 0) {
-            console.log(`[ReceivablesTable] Bank ${bankCode} has ${bankData.accounts.length} accounts`);
-            bankData.accounts.forEach((account) => {
-              // Получаем account_id используя унифицированную функцию
-              const accountId = getAccountId(account);
-              
-              if (!accountId) {
-                console.warn(`[ReceivablesTable] Skipping account without account_id:`, account);
-                return;
-              }
-              
-              console.log(`[ReceivablesTable] Fetching transactions for account ${accountId} from ${bankCode}`);
-              
-              // Получаем баланс счета (сервер автоматически использует сохраненный consent_id)
-              const balancePromise = getAccountBalances(
-                accountId,
-                bankCode,
-                bankData.consent_id // опционально, сервер получит из БД если не указано
-              )
-                .then((response) => {
-                  console.log(`[ReceivablesTable] Balance for account ${accountId}:`, response.data);
-                  // Здесь можно обработать баланс, например, сохранить в состояние или отобразить
-                })
-                .catch((err) => {
-                  console.error(`[ReceivablesTable] Error fetching balance for account ${accountId}:`, err);
-                  console.error(`[ReceivablesTable] Error details:`, {
-                    message: err.message,
-                    response: err.response?.data,
-                    status: err.response?.status,
-                  });
-                });
-              
-              transactionPromises.push(balancePromise);
-              
-              // Сервер автоматически использует сохраненный consent_id
-              const promise = getAccountTransactions(
-                accountId,
-                bankCode,
-                undefined, // consent_id не передаем - сервер использует сохраненный
-                fromDate,
-                toDate
-              )
-                .then((response) => {
-                  // API возвращает { data: { transaction: [...] } }
-                  const transactions = response.data?.transaction || response.data?.transactions || [];
-                  console.log(`[ReceivablesTable] Received ${transactions.length} transactions for account ${accountId}`);
-                  console.log(`[ReceivablesTable] Full response:`, response.data);
-                  
-                  // Фильтруем входящие транзакции (Credit)
-                  // Берем только первые 5 с каждого банка
-                  const creditTransactions = transactions
-                    .filter((tx: any) => {
-                      const indicator = tx.creditDebitIndicator;
-                      return indicator === "Credit";
-                    })
-                    .slice(0, 5); // Ограничиваем до 5 транзакций с каждого банка
-                  
-                  creditTransactions.forEach((tx: any) => {
-                    // Извлекаем сумму из объекта amount: { amount: "383710.09", currency: "RUB" }
-                    const amount = tx.amount?.amount ? parseFloat(tx.amount.amount) : 0;
-                    
-                    // Используем название банка вместо контрагента
-                    const counterparty = bankNames[bankCode] || bankCode;
-                    
-                    // Извлекаем дату из bookingDateTime
-                    const bookingDate = tx.bookingDateTime || tx.valueDateTime;
-                    
-                    // Определяем статус: completed = received, иначе по дате
-                    let status: "pending" | "overdue" | "received";
-                    if (tx.status === "completed") {
-                      status = "received";
-                    } else if (bookingDate && isOverdue(bookingDate)) {
-                      status = "overdue";
-                    } else {
-                      status = "pending";
-                    }
-
-                    receivablesList.push({
-                      id: tx.transactionId || `${accountId}-${Date.now()}`,
-                      counterparty,
-                      amount,
-                      dueDate: formatDate(bookingDate),
-                      status,
-                      transactionId: tx.transactionId,
-                    });
-                  });
-                })
-                .catch((err) => {
-                  console.error(`[ReceivablesTable] Error fetching transactions for account ${accountId}:`, err);
-                  console.error(`[ReceivablesTable] Error details:`, {
-                    message: err.message,
-                    response: err.response?.data,
-                    status: err.response?.status,
-                  });
-                });
-              
-              transactionPromises.push(promise);
-            });
-          } else {
+          if (!bankData.success || !bankData.accounts?.length) {
             console.warn(`[ReceivablesTable] Bank ${bankCode} has no accounts or failed:`, bankData.error || "No accounts");
+            return;
           }
+
+          bankData.accounts.forEach((account) => {
+            const accountId = getAccountId(account);
+
+            if (!accountId) {
+              console.warn(`[ReceivablesTable] Skipping account without account_id:`, account);
+              return;
+            }
+
+            const promise = getAccountTransactions(
+              accountId,
+              bankCode,
+              undefined,
+              fromDate,
+              toDate
+            )
+              .then((response) => {
+                const transactionsPayload = response.data?.transactions || response.data?.transaction || [];
+                const creditTransactions = (transactionsPayload as BankTransaction[])
+                  .map((tx) => ({
+                    ...tx,
+                    bankName: bankNames[bankCode] || bankCode,
+                    bankCode,
+                  }))
+                  .filter((tx) => {
+                    const indicator = (tx.transaction_type || tx.creditDebitIndicator || "").toString().toLowerCase();
+                    return indicator === "credit";
+                  });
+
+                collected.push(...creditTransactions);
+              })
+              .catch((err) => {
+                console.error(`[ReceivablesTable] Error fetching transactions for account ${accountId}:`, err);
+                console.error(`[ReceivablesTable] Error details:`, {
+                  message: err.message,
+                  response: err.response?.data,
+                  status: err.response?.status,
+                });
+              });
+
+            transactionPromises.push(promise);
+          });
         });
 
-        console.log(`[ReceivablesTable] Waiting for ${transactionPromises.length} transaction requests...`);
         await Promise.all(transactionPromises);
-        console.log(`[ReceivablesTable] Found ${receivablesList.length} receivables`);
 
-        // Сортируем по дате (новые сначала)
-        receivablesList.sort((a, b) => {
-          if (a.dueDate === "—" && b.dueDate === "—") return 0;
-          if (a.dueDate === "—") return 1;
-          if (b.dueDate === "—") return -1;
-          return b.dueDate.localeCompare(a.dueDate);
+        collected.sort((a, b) => {
+          const dateA = new Date(a.booking_date || a.bookingDateTime || a.value_date || a.valueDateTime || 0).getTime();
+          const dateB = new Date(b.booking_date || b.bookingDateTime || b.value_date || b.valueDateTime || 0).getTime();
+          return dateB - dateA;
         });
 
-        setReceivables(receivablesList);
+        setTransactions(collected);
       } catch (err: any) {
         console.error("Error fetching receivables:", err);
         setError(err.response?.data?.detail || err.message || "Ошибка загрузки данных");
@@ -277,28 +174,6 @@ export default function ReceivablesTable() {
 
     fetchReceivables();
   }, [me]);
-
-  const getStatusBadge = (status: string) => {
-    if (status === "overdue") {
-      return (
-        <Badge className={styles.badgeOverdue}>
-          Overdue
-        </Badge>
-      );
-    }
-    if (status === "received") {
-      return (
-        <Badge className={styles.badgePending} style={{ backgroundColor: "#10b981" }}>
-          Received
-        </Badge>
-      );
-    }
-    return (
-      <Badge className={styles.badgePending}>
-        Pending
-      </Badge>
-    );
-  };
 
   if (!me) {
     return (
@@ -332,47 +207,13 @@ export default function ReceivablesTable() {
         </div>
       </CardHeader>
       <CardContent className={styles.content}>
-        {isLoading ? (
-          <div style={{ padding: "2rem", textAlign: "center" }}>
-            <p>Загрузка данных...</p>
-          </div>
-        ) : error ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "#ef4444" }}>
-            <p>{error}</p>
-          </div>
-        ) : receivables.length === 0 ? (
-          <div style={{ padding: "2rem", textAlign: "center" }}>
-            <p>Нет входящих платежей за последние 30 дней</p>
-          </div>
-        ) : (
-          <div className={styles.tableWrap}>
-            <Table>
-              <TableHeader>
-                <TableRow className={styles.tableRow}>
-                  <TableHead className={styles.counterparty}>Банк</TableHead>
-                  <TableHead className={styles.amount}>Сумма</TableHead>
-                  <TableHead className={styles.dueDate}>Дата</TableHead>
-                  <TableHead>Статус</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {receivables.map((item) => (
-                  <TableRow key={item.id} className={`${styles.tableRow} ${styles.tableRowHover}`}>
-                    <TableCell className={styles.counterparty}>{item.counterparty}</TableCell>
-                    <TableCell className={styles.amount}>
-                      ₽{item.amount.toLocaleString("ru-RU", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </TableCell>
-                    <TableCell className={styles.dueDate}>{item.dueDate}</TableCell>
-                    <TableCell>{getStatusBadge(item.status)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+        <TransactionsTable
+          transactions={transactions}
+          isLoading={isLoading}
+          error={error}
+          emptyMessage="Нет входящих платежей за последние 30 дней"
+          limit={20}
+        />
       </CardContent>
     </Card>
   );

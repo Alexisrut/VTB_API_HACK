@@ -1,12 +1,11 @@
 import Layout from "../../components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../ui/table";
-import { Calendar, ArrowUpCircle, ArrowDownCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { getAllBankAccounts, getAccountTransactions, getAccountId, type BankTransaction } from "../../utils/api";
 import styles from "./index.module.scss";
 import { toast } from "sonner";
 import { useMe } from "../../hooks/context";
+import TransactionsTable from "../../components/TransactionsTable";
 
 const bankNames: { [key: string]: string } = {
   vbank: "Virtual Bank",
@@ -118,35 +117,6 @@ export default function Payments() {
     return true;
   });
 
-  const normalizeDate = (dateString?: string) => {
-    if (!dateString) return null;
-    // Если дата без таймзоны, воспринимаем как UTC
-    const hasTimezone =
-      dateString.includes("Z") || /[+-]\d{2}:?\d{2}$/.test(dateString);
-    const normalized = hasTimezone ? dateString : `${dateString}Z`;
-    const parsed = new Date(normalized);
-    return isNaN(parsed.getTime()) ? null : parsed;
-  };
-
-  const formatDate = (dateString?: string) => {
-    const date = normalizeDate(dateString);
-    if (!date) return "—";
-    return date.toLocaleDateString("ru-RU", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
-
-  const formatAmount = (amount: number | string | undefined) => {
-    if (amount === undefined || amount === null) return "0.00";
-    const numAmount = typeof amount === "string" ? parseFloat(amount) : amount;
-    return numAmount.toLocaleString("ru-RU", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  };
-
   if (!me) {
     return (
       <Layout>
@@ -197,86 +167,12 @@ export default function Payments() {
             </div>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
-              <div style={{ padding: "2rem", textAlign: "center" }}>
-                <p>Загрузка данных...</p>
-              </div>
-            ) : error ? (
-              <div style={{ padding: "2rem", textAlign: "center", color: "#ef4444" }}>
-                <p>{error}</p>
-              </div>
-            ) : filteredTransactions.length === 0 ? (
-              <div style={{ padding: "2rem", textAlign: "center" }}>
-                <p>Нет транзакций за выбранный период</p>
-              </div>
-            ) : (
-              <div className={styles.tableWrap}>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Дата</TableHead>
-                      <TableHead>Описание</TableHead>
-                      <TableHead>Банк</TableHead>
-                      <TableHead>Тип</TableHead>
-                      <TableHead>Сумма</TableHead>
-                      <TableHead>Статус</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTransactions.map((tx: any) => {
-                      const indicatorRaw = tx.transaction_type || tx.creditDebitIndicator;
-                      const indicator = indicatorRaw ? indicatorRaw.toString().toLowerCase() : "";
-                      const isCredit = indicator === "credit";
-                      let txAmount = tx.amount || 0;
-                      if (typeof txAmount === "object" && txAmount.amount) {
-                        txAmount = parseFloat(txAmount.amount);
-                      }
-                      const txDate = tx.booking_date || tx.bookingDateTime || tx.value_date || tx.valueDateTime;
-                      const txDescription = 
-                        tx.transactionInformation ||
-                        (typeof tx.remittance_information === "string" ? tx.remittance_information :
-                         (tx.remittanceInformation && typeof tx.remittanceInformation === "object" ? tx.remittanceInformation.unstructured :
-                          typeof tx.remittanceInformation === "string" ? tx.remittanceInformation : null)) ||
-                        "Без описания";
-                      // Используем название банка вместо контрагента
-                      const bankName = tx.bankName || (tx.bankCode ? (bankNames[tx.bankCode] || tx.bankCode) : "—");
-                      const txId = tx.transaction_id || tx.transactionId || `${txDate}-${txAmount}`;
-                      
-                      return (
-                        <TableRow key={txId}>
-                          <TableCell>{formatDate(txDate)}</TableCell>
-                          <TableCell className={styles.description}>
-                            {txDescription}
-                          </TableCell>
-                          <TableCell>{bankName}</TableCell>
-                          <TableCell>
-                            {isCredit ? (
-                              <div className={styles.typeIncome}>
-                                <ArrowUpCircle size={16} />
-                                <span>Доход</span>
-                              </div>
-                            ) : (
-                              <div className={styles.typeExpense}>
-                                <ArrowDownCircle size={16} />
-                                <span>Расход</span>
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell
-                            className={isCredit ? styles.amountIncome : styles.amountExpense}
-                          >
-                            {isCredit ? "+" : "-"}₽{formatAmount(txAmount)}
-                          </TableCell>
-                          <TableCell>
-                            <span className={styles.status}>{tx.status || "Booked"}</span>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+            <TransactionsTable
+              transactions={filteredTransactions}
+              isLoading={isLoading}
+              error={error}
+              emptyMessage="Нет транзакций за выбранный период"
+            />
           </CardContent>
         </Card>
       </div>
