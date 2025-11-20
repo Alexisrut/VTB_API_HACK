@@ -280,7 +280,7 @@ class FinancialAnalyticsService:
         return sum(
             tx.amount 
             for tx in transactions 
-            if tx.category == "income" or tx.transaction_type == "credit"
+            if tx.category == "income" or tx.transaction_type == "Credit"
         )
     
     def _calculate_expenses(self, transactions: List) -> Decimal:
@@ -288,7 +288,7 @@ class FinancialAnalyticsService:
         return sum(
             tx.amount 
             for tx in transactions 
-            if tx.category == "expense" or tx.transaction_type == "debit"
+            if tx.category == "expense" or tx.transaction_type == "Debit"
         )
     
     def _calculate_revenue_from_bank_transactions(self, transactions: List[Dict]) -> Decimal:

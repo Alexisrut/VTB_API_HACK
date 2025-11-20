@@ -383,8 +383,31 @@ class DataAggregationService:
         bank_code: str,
         transaction_data: Dict
     ):
-        """Сохранить транзакцию"""
-        tx_id = transaction_data.get("transaction_id") or transaction_data.get("id")
+        """
+        Сохранить транзакцию в базу данных
+        
+        Ожидаемый формат transaction_data (из банковского API):
+        {
+            "transactionId": "tx-vbank-00668159",
+            "accountId": "acc-3704",
+            "amount": {
+                "amount": "383710.09",
+                "currency": "RUB"
+            },
+            "creditDebitIndicator": "Credit",
+            "status": "completed",
+            "bookingDateTime": "2025-11-08T19:23:15.285567Z",
+            "valueDateTime": "2025-11-08T19:23:15.285567Z",
+            "transactionInformation": "Выручка",
+            ...
+        }
+        """
+        # Извлекаем transaction_id (поддерживаем оба формата: camelCase и snake_case)
+        tx_id = (
+            transaction_data.get("transactionId") or 
+            transaction_data.get("transaction_id") or 
+            transaction_data.get("id")
+        )
         
         if tx_id:
             # Проверяем, существует ли уже транзакция
@@ -401,16 +424,27 @@ class DataAggregationService:
             if existing_tx:
                 return existing_tx  # Уже существует
         
-        # Извлекаем данные
-        amount = transaction_data.get("amount", {}).get("amount") or transaction_data.get("amount")
-        if not amount:
+        # Извлекаем сумму из объекта amount: { amount: "383710.09", currency: "RUB" }
+        amount_obj = transaction_data.get("amount", {})
+        if isinstance(amount_obj, dict):
+            amount_str = amount_obj.get("amount")
+            currency = amount_obj.get("currency")
+        else:
+            amount_str = amount_obj
+            currency = None
+        
+        if not amount_str:
             return None
         
-        amount = Decimal(str(amount))
-        currency = transaction_data.get("currency") or transaction_data.get("amount", {}).get("currency") or "RUB"
+        amount = Decimal(str(amount_str))
+        currency = currency or transaction_data.get("currency") or "RUB"
         
-        # Определяем тип транзакции
-        tx_type = transaction_data.get("transaction_type") or transaction_data.get("credit_debit_indicator")
+        # Определяем тип транзакции (creditDebitIndicator из API)
+        tx_type = (
+            transaction_data.get("creditDebitIndicator") or 
+            transaction_data.get("credit_debit_indicator") or
+            transaction_data.get("transaction_type")
+        )
         if not tx_type:
             # Пытаемся определить по знаку суммы
             tx_type = "credit" if amount >= 0 else "debit"
@@ -418,9 +452,15 @@ class DataAggregationService:
         # Определяем категорию
         category = "expense" if tx_type.lower() == "debit" else "income"
         
-        # Парсим даты
-        booking_date_str = transaction_data.get("booking_date") or transaction_data.get("bookingDateTime")
-        value_date_str = transaction_data.get("value_date") or transaction_data.get("valueDateTime")
+        # Парсим даты (bookingDateTime из API)
+        booking_date_str = (
+            transaction_data.get("bookingDateTime") or 
+            transaction_data.get("booking_date")
+        )
+        value_date_str = (
+            transaction_data.get("valueDateTime") or 
+            transaction_data.get("value_date")
+        )
         
         booking_date = None
         if booking_date_str:
@@ -444,6 +484,30 @@ class DataAggregationService:
             except:
                 pass
         
+        # Извлекаем remittance_information (transactionInformation из API)
+        remittance_info = (
+            transaction_data.get("transactionInformation") or
+            transaction_data.get("remittanceInformation") or
+            (transaction_data.get("remittanceInformation", {}).get("unstructured") if isinstance(transaction_data.get("remittanceInformation"), dict) else None) or
+            transaction_data.get("remittance_information")
+        )
+        
+        # Извлекаем creditor/debtor информацию
+        creditor_account_obj = transaction_data.get("creditorAccount", {})
+        debtor_account_obj = transaction_data.get("debtorAccount", {})
+        
+        creditor_account = None
+        if isinstance(creditor_account_obj, dict):
+            creditor_account = creditor_account_obj.get("identification") or creditor_account_obj.get("iban")
+        else:
+            creditor_account = transaction_data.get("creditor_account")
+        
+        debtor_account = None
+        if isinstance(debtor_account_obj, dict):
+            debtor_account = debtor_account_obj.get("identification") or debtor_account_obj.get("iban")
+        else:
+            debtor_account = transaction_data.get("debtor_account")
+        
         # Создаем транзакцию
         transaction = BankTransaction(
             user_id=user_id,
@@ -455,11 +519,11 @@ class DataAggregationService:
             transaction_type=tx_type.lower(),
             booking_date=booking_date,
             value_date=value_date,
-            remittance_information=transaction_data.get("remittance_information") or transaction_data.get("remittanceInformation"),
-            creditor_name=transaction_data.get("creditor_name") or transaction_data.get("creditorName"),
-            creditor_account=transaction_data.get("creditor_account") or transaction_data.get("creditorAccount", {}).get("iban"),
-            debtor_name=transaction_data.get("debtor_name") or transaction_data.get("debtorName"),
-            debtor_account=transaction_data.get("debtor_account") or transaction_data.get("debtorAccount", {}).get("iban"),
+            remittance_information=remittance_info,
+            creditor_name=transaction_data.get("creditorName") or transaction_data.get("creditor_name"),
+            creditor_account=creditor_account,
+            debtor_name=transaction_data.get("debtorName") or transaction_data.get("debtor_name"),
+            debtor_account=debtor_account,
             category=category
         )
         
