@@ -112,15 +112,26 @@ export default function Payments() {
 
   const filteredTransactions = transactions.filter((tx) => {
     if (filter === "all") return true;
-    const indicator = tx.transaction_type || tx.creditDebitIndicator;
-    if (filter === "income") return indicator === "Credit";
-    if (filter === "expense") return indicator === "Debit";
+    const indicator = (tx.transaction_type || tx.creditDebitIndicator || "").toString().toLowerCase();
+    if (filter === "income") return indicator === "credit";
+    if (filter === "expense") return indicator === "debit";
     return true;
   });
 
+  const normalizeDate = (dateString?: string) => {
+    if (!dateString) return null;
+    // Если дата без таймзоны, воспринимаем как UTC
+    const hasTimezone =
+      dateString.includes("Z") || /[+-]\d{2}:?\d{2}$/.test(dateString);
+    const normalized = hasTimezone ? dateString : `${dateString}Z`;
+    const parsed = new Date(normalized);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
+
   const formatDate = (dateString?: string) => {
-    if (!dateString) return "—";
-    return new Date(dateString).toLocaleDateString("ru-RU", {
+    const date = normalizeDate(dateString);
+    if (!date) return "—";
+    return date.toLocaleDateString("ru-RU", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -213,9 +224,13 @@ export default function Payments() {
                   </TableHeader>
                   <TableBody>
                     {filteredTransactions.map((tx: any) => {
-                      const indicator = tx.transaction_type || tx.creditDebitIndicator;
-                      const isCredit = indicator === "Credit";
-                      const txAmount = tx.amount || 0;
+                      const indicatorRaw = tx.transaction_type || tx.creditDebitIndicator;
+                      const indicator = indicatorRaw ? indicatorRaw.toString().toLowerCase() : "";
+                      const isCredit = indicator === "credit";
+                      let txAmount = tx.amount || 0;
+                      if (typeof txAmount === "object" && txAmount.amount) {
+                        txAmount = parseFloat(txAmount.amount);
+                      }
                       const txDate = tx.booking_date || tx.bookingDateTime || tx.value_date || tx.valueDateTime;
                       const txDescription = 
                         tx.transactionInformation ||

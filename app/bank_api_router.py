@@ -8,6 +8,7 @@ import asyncio
 from app.database import get_db
 from app.security.oauth2 import get_current_user
 from app.services.universal_bank_service import universal_bank_service
+from app.services.data_aggregation_service import data_aggregation_service
 from app.bank_schemas import (
     GetBankAccountsResponse,
     BankAccountSchema,
@@ -74,11 +75,11 @@ async def get_user_accounts(
         
         logger.info(f"User {user_id} requesting accounts from {bank_code}")
         
-        result = await universal_bank_service.get_all_accounts_full_cycle(
+        # Используем data_aggregation_service для получения и сохранения счетов в БД
+        result = await data_aggregation_service.fetch_and_save_accounts(
             bank_code=bank_code,
-            user_id=str(user_id),  # Fallback если нет в БД
-            db=db,
-            internal_user_id=user_id
+            user_id=user_id,
+            db=db
         )
         
         if not result.get("success"):
@@ -412,207 +413,84 @@ async def get_account_transactions(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Получить транзакции по счету
+    Получить транзакции по счету с использованием кэширования (Read-Through Caching).
     
-    Согласно OpenAPI спецификации и логике bank-in-a-box:
-    - Поддерживает пагинацию (page, limit)
-    - Фильтрация по датам (from_booking_date_time, to_booking_date_time)
-    - Требует согласие с разрешением ReadTransactionsDetail
+    Сначала проверяет локальную базу данных. Если данные устарели (старше 5 минут),
+    синхронизирует их с банком и затем возвращает из БД.
     
     **Параметры:**
     - **account_id**: ID счета
     - **bank_code**: Код банка
-    - **consent_id**: ID согласия (опционально, если не указано - будет получен из БД)
-    - **from_booking_date_time** (или **from_date**): Дата начала в формате ISO 8601 или YYYY-MM-DD
-    - **to_booking_date_time** (или **to_date**): Дата конца в формате ISO 8601 или YYYY-MM-DD
-    - **page**: Номер страницы (по умолчанию: 1)
-    - **limit**: Количество транзакций на странице (по умолчанию: 50, макс: 500)
-    
-    **Требования:**
-    - Согласие должно быть активным (status="approved")
-    - Согласие должно содержать разрешение ReadTransactionsDetail
-    - Согласие не должно быть истекшим
+    - **from_date**: Дата начала
+    - **to_date**: Дата конца
+    - **page**: Номер страницы
+    - **limit**: Количество на странице
     """
     try:
         # Валидируем существование банка
         await validate_bank_code(bank_code, db)
         
-        from app.models import BankConsent
-        from sqlalchemy import select, and_
-        from datetime import datetime
-        
-        # Валидация параметров пагинации (согласно логике bank-in-a-box)
+        # Валидация параметров пагинации
         if page is None or page < 1:
             page = 1
         if limit is None or limit < 1:
             limit = 50
         if limit > 500:
             limit = 500
-        
-        # Если consent_id не указан, получаем его из БД
-        if not consent_id:
-            stmt = select(BankConsent).where(
-                and_(
-                    BankConsent.user_id == user_id,
-                    BankConsent.bank_code == bank_code,
-                    BankConsent.status == "approved"
-                )
-            ).order_by(BankConsent.created_at.desc())
-            result = await db.execute(stmt)
-            consent = result.scalar_one_or_none()
             
-            if not consent:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={
-                        "error": "CONSENT_REQUIRED",
-                        "message": f"Требуется согласие клиента для доступа к транзакциям. Получите согласие через POST /account-consents с permissions=['ReadTransactionsDetail']"
-                    }
-                )
-            
-            # Проверяем, что согласие не истекло
-            if consent.expires_at and consent.expires_at < datetime.utcnow():
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={
-                        "error": "CONSENT_EXPIRED",
-                        "message": "Согласие истекло. Получите новое согласие через POST /account-consents с permissions=['ReadTransactionsDetail']"
-                    }
-                )
-            
-            consent_id = consent.consent_id
-            logger.info(f"Using consent_id from DB: {consent_id} for bank {bank_code}")
-        else:
-            # Если consent_id указан, проверяем его существование и валидность
-            stmt = select(BankConsent).where(
-                and_(
-                    BankConsent.consent_id == consent_id,
-                    BankConsent.user_id == user_id,
-                    BankConsent.bank_code == bank_code,
-                    BankConsent.status == "approved"
-                )
-            )
-            result = await db.execute(stmt)
-            consent = result.scalar_one_or_none()
-            
-            if not consent:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={
-                        "error": "CONSENT_NOT_FOUND",
-                        "message": f"Согласие {consent_id} не найдено или не активно"
-                    }
-                )
-            
-            # Проверяем, что согласие не истекло
-            if consent.expires_at and consent.expires_at < datetime.utcnow():
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={
-                        "error": "CONSENT_EXPIRED",
-                        "message": "Согласие истекло. Получите новое согласие через POST /account-consents с permissions=['ReadTransactionsDetail']"
-                    }
-                )
-        
-        # Примечание: Проверка разрешения ReadTransactionsDetail происходит на стороне банка
-        # при запросе транзакций. Если согласие не содержит это разрешение, банк вернет ошибку.
-        # В bank-in-a-box это проверяется через ConsentService.check_consent с permissions=["ReadTransactionsDetail"]
-        # В нашем случае, мы полагаемся на проверку со стороны банка, так как permissions
-        # не хранятся в нашей БД, но должны быть включены при создании согласия.
-        
-        access_token = await universal_bank_service.get_bank_access_token(bank_code, db=db)
-        if not access_token:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to obtain bank token"
-            )
-        
-        transactions_data = await universal_bank_service.get_account_transactions(
-            bank_code=bank_code,
-            access_token=access_token,
+        # Обработка дат
+        from_date = None
+        if from_booking_date_time:
+            if len(from_booking_date_time) == 10:
+                from_booking_date_time += "T00:00:00Z"
+            try:
+                from_date = datetime.fromisoformat(from_booking_date_time.replace("Z", "+00:00"))
+            except ValueError:
+                pass # Игнорируем ошибку, если дата некорректна, будет None
+                
+        to_date = None
+        if to_booking_date_time:
+            if len(to_booking_date_time) == 10:
+                to_booking_date_time += "T23:59:59Z"
+            try:
+                to_date = datetime.fromisoformat(to_booking_date_time.replace("Z", "+00:00"))
+            except ValueError:
+                pass
+
+        # Получаем данные через сервис с кэшированием
+        result = await data_aggregation_service.get_transactions_read_through(
+            db=db,
+            user_id=user_id,
             account_id=account_id,
-            consent_id=consent_id,
-            from_booking_date_time=from_booking_date_time,
-            to_booking_date_time=to_booking_date_time,
+            bank_code=bank_code,
+            from_date=from_date,
+            to_date=to_date,
             page=page,
             limit=limit,
-            db=db,
-            internal_user_id=user_id
+            ttl_seconds=300 # 5 минут кэш
         )
         
-        if not transactions_data:
+        if not result.get("success"):
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Transactions not found"
+                status_code=status.HTTP_404_NOT_FOUND if "not found" in str(result.get("error")).lower() else status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=result.get("error", "Failed to get transactions")
             )
-        
-        transactions = transactions_data.get("transactions", [])
-        
-        # Преобразуем транзакции в формат схемы
+            
+        transactions = result.get("transactions", [])
         formatted_transactions = []
-        for tx in transactions:
-            # Преобразуем accountId -> account_id
-            tx_account_id = tx.get("accountId") or tx.get("account_id") or account_id
-            
-            # Преобразуем amount из объекта в число
-            tx_amount = None
-            tx_currency = None
-            if "amount" in tx:
-                if isinstance(tx["amount"], dict):
-                    # Формат: {"amount": {"amount": "1570.56", "currency": "RUB"}}
-                    tx_amount = float(tx["amount"].get("amount", 0)) if tx["amount"].get("amount") else None
-                    tx_currency = tx["amount"].get("currency")
-                elif isinstance(tx["amount"], str):
-                    # Формат: "1570.56"
-                    tx_amount = float(tx["amount"]) if tx["amount"] else None
-                else:
-                    tx_amount = float(tx["amount"]) if tx["amount"] else None
-            
-            # Если currency не в amount, берем из верхнего уровня
-            if not tx_currency:
-                tx_currency = tx.get("currency")
-            
-            # Преобразуем даты
-            booking_date = None
-            value_date = None
-            if tx.get("bookingDateTime"):
-                try:
-                    booking_date = datetime.fromisoformat(tx["bookingDateTime"].replace("Z", "+00:00"))
-                except:
-                    pass
-            if tx.get("valueDateTime"):
-                try:
-                    value_date = datetime.fromisoformat(tx["valueDateTime"].replace("Z", "+00:00"))
-                except:
-                    pass
-            
-            # Формируем транзакцию в формате схемы
-            formatted_tx = {
-                "transaction_id": tx.get("transactionId") or tx.get("transaction_id"),
-                "account_id": tx_account_id,
-                "amount": tx_amount,
-                "currency": tx_currency,
-                "transaction_type": tx.get("creditDebitIndicator") or tx.get("transaction_type"),
-                "booking_date": booking_date,
-                "value_date": value_date,
-                "remittance_information": (
-                    tx.get("transactionInformation") or 
-                    tx.get("remittanceInformation", {}).get("unstructured") if isinstance(tx.get("remittanceInformation"), dict) else tx.get("remittanceInformation") or
-                    tx.get("remittance_information")
-                ),
-                "creditor_name": tx.get("creditorName") or tx.get("creditor_name"),
-                "creditor_account": tx.get("creditorAccount", {}).get("identification") if isinstance(tx.get("creditorAccount"), dict) else tx.get("creditor_account"),
-                "debtor_name": tx.get("debtorName") or tx.get("debtor_name"),
-                "debtor_account": tx.get("debtorAccount", {}).get("identification") if isinstance(tx.get("debtorAccount"), dict) else tx.get("debtor_account"),
-            }
-            
-            formatted_transactions.append(BankTransactionSchema(**formatted_tx))
         
+        for tx in transactions:
+            try:
+                formatted_transactions.append(BankTransactionSchema(**tx))
+            except Exception as e:
+                logger.warning(f"Skipping invalid transaction schema: {e}")
+                continue
+                
         return GetBankTransactionsResponse(
             success=True,
             account_id=account_id,
             transactions=formatted_transactions,
-            total_count=len(formatted_transactions)
+            total_count=result.get("total_count", len(formatted_transactions))
         )
     
     except HTTPException:

@@ -250,6 +250,18 @@ async def delete_bank_user(
                 detail=f"Bank user not found for bank_code: {bank_code}"
             )
         
+        # Отвязываем согласия от счетов перед удалением
+        from app.models import BankAccount
+        from sqlalchemy import update
+        
+        update_stmt = update(BankAccount).where(
+            and_(
+                BankAccount.user_id == user_id,
+                BankAccount.bank_code == bank_code
+            )
+        ).values(consent_id=None)
+        await db.execute(update_stmt)
+        
         # Удаляем связанные согласия для этого банка
         consent_delete_stmt = sql_delete(BankConsent).where(
             and_(

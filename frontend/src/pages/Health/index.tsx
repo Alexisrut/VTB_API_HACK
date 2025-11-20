@@ -30,11 +30,23 @@ export default function Health() {
         if (response.data.success && response.data.metrics) {
           setMetrics(response.data.metrics);
         } else {
-          setError(response.data.error || "Не удалось загрузить метрики");
+          let errorMessage = "Не удалось загрузить метрики";
+          if (response.data.error) {
+             errorMessage = typeof response.data.error === 'string' ? response.data.error : JSON.stringify(response.data.error);
+          }
+          setError(errorMessage);
         }
       } catch (err: any) {
         console.error("Error fetching health metrics:", err);
-        setError(err.response?.data?.detail || "Ошибка загрузки данных");
+        let errorMessage = "Ошибка загрузки данных";
+        const data = err.response?.data;
+        if (data) {
+             if (typeof data.detail === 'string') errorMessage = data.detail;
+             else if (data.detail) errorMessage = JSON.stringify(data.detail);
+             else if (typeof data.error === 'string') errorMessage = data.error;
+             else if (data.error) errorMessage = JSON.stringify(data.error);
+        }
+        setError(errorMessage);
         toast.error("Не удалось загрузить метрики финансового здоровья");
       } finally {
         setIsLoading(false);
@@ -250,4 +262,3 @@ export default function Health() {
     </Layout>
   );
 }
-

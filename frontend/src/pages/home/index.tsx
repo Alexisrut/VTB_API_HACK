@@ -119,7 +119,7 @@ export default function Index() {
           <BankAccountsList />
         </div>
 
-        <ReceivablesTable />
+        {/* <ReceivablesTable /> */}
       </div>
     </Layout>
   );

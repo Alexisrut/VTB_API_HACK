@@ -2,11 +2,11 @@
 Сервис для агрегации и синхронизации данных из банков
 """
 import logging
-from datetime import datetime, timedelta
-from typing import List, Optional, Dict
+from datetime import datetime, timedelta, timezone
+from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, desc, func
 from sqlalchemy.orm import selectinload
 
 from app.models import (
@@ -118,6 +118,64 @@ class DataAggregationService:
             
         except Exception as e:
             logger.error(f"Error in sync_user_accounts: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def fetch_and_save_accounts(
+        self,
+        bank_code: str,
+        user_id: int,
+        db: AsyncSession
+    ) -> Dict:
+        """
+        Получить счета из банка и сохранить их в БД.
+        Используется для endpoint GET /accounts.
+        """
+        try:
+            # Получаем данные из банка
+            bank_result = await self.bank_service.get_all_accounts_full_cycle(
+                bank_code=bank_code,
+                user_id=str(user_id),
+                db=db,
+                internal_user_id=user_id
+            )
+            
+            if not bank_result.get("success"):
+                return bank_result
+            
+            # Сохраняем согласие
+            consent_id = bank_result.get("consent_id")
+            if consent_id:
+                await self._save_consent(
+                    db=db,
+                    user_id=user_id,
+                    bank_code=bank_code,
+                    consent_id=consent_id,
+                    auto_approved=bank_result.get("auto_approved", True)
+                )
+            
+            # Сохраняем счета
+            accounts = bank_result.get("accounts", [])
+            for account_data in accounts:
+                account_id = account_data.get("account_id") or account_data.get("id")
+                if not account_id:
+                    continue
+                
+                await self._save_account(
+                    db=db,
+                    user_id=user_id,
+                    bank_code=bank_code,
+                    account_id=account_id,
+                    account_data=account_data,
+                    consent_id=consent_id
+                )
+            
+            return bank_result
+            
+        except Exception as e:
+            logger.error(f"Error in fetch_and_save_accounts: {e}")
             return {
                 "success": False,
                 "error": str(e)
@@ -267,6 +325,210 @@ class DataAggregationService:
                 "error": str(e)
             }
     
+    async def get_transactions_read_through(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        account_id: str,  # Bank's account ID (string)
+        bank_code: str,
+        from_date: Optional[datetime] = None,
+        to_date: Optional[datetime] = None,
+        page: int = 1,
+        limit: int = 50,
+        ttl_seconds: int = 300  # 5 minutes cache TTL
+    ) -> Dict:
+        """
+        Получить транзакции с использованием паттерна Read-Through Caching.
+        
+        1. Проверяет наличие локальных данных и их свежесть.
+        2. Если данные устарели или отсутствуют, синхронизирует их с банком.
+        3. Возвращает данные из локальной БД с пагинацией и фильтрацией.
+        """
+        try:
+            # 1. Находим счет в нашей БД
+            stmt = select(BankAccount).where(
+                and_(
+                    BankAccount.user_id == user_id,
+                    BankAccount.account_id == account_id,
+                    BankAccount.bank_code == bank_code
+                )
+            )
+            result = await db.execute(stmt)
+            account = result.scalar_one_or_none()
+            
+            if not account:
+                # Попытка восстановления: Если счета нет в БД, попробуем получить его из банка
+                logger.info(f"Account {account_id} not found in DB, attempting to fetch from bank...")
+                
+                # Нам нужен токен и согласие
+                access_token = await self.bank_service.get_bank_access_token(bank_code, db=db)
+                if not access_token:
+                    return {"success": False, "error": "Account not found in DB and failed to get bank token"}
+                
+                # Ищем любое активное согласие
+                consent = await self._get_active_consent(db, user_id, bank_code)
+                if not consent:
+                     return {"success": False, "error": "Account not found in DB and no active consent found"}
+                
+                # Пытаемся получить детали счета из банка
+                account_data = await self.bank_service.get_account_details(
+                    bank_code=bank_code,
+                    access_token=access_token,
+                    account_id=account_id,
+                    consent_id=consent.consent_id,
+                    db=db,
+                    internal_user_id=user_id
+                )
+                
+                if not account_data:
+                    # Если и в банке не нашли, или ошибка
+                    return {"success": False, "error": "Account not found in database and failed to fetch from bank"}
+                
+                # Если данные вложены в data.account или data.accounts, извлекаем
+                if isinstance(account_data, dict):
+                    if "data" in account_data:
+                         if "account" in account_data["data"]:
+                             acc_list = account_data["data"]["account"]
+                             if isinstance(acc_list, list) and acc_list:
+                                 account_data = acc_list[0]
+                             elif isinstance(acc_list, dict):
+                                 account_data = acc_list
+                    elif "account" in account_data:
+                        acc_list = account_data["account"]
+                        if isinstance(acc_list, list) and acc_list:
+                            account_data = acc_list[0]
+                        elif isinstance(acc_list, dict):
+                            account_data = acc_list
+
+                # Сохраняем счет
+                account = await self._save_account(
+                    db=db,
+                    user_id=user_id,
+                    bank_code=bank_code,
+                    account_id=account_id,
+                    account_data=account_data,
+                    consent_id=consent.consent_id
+                )
+                logger.info(f"Successfully recovered and saved account {account_id} to DB")
+
+            if not account:
+                 return {"success": False, "error": "Account could not be saved/retrieved"}
+
+            # 2. Проверяем свежесть данных
+            is_stale = True
+            if account.last_synced_at:
+                age = (datetime.utcnow() - account.last_synced_at).total_seconds()
+                if age < ttl_seconds:
+                    is_stale = False
+                    logger.info(f"Transactions cache hit for {account_id} (age: {age}s)")
+            
+            # 3. Если данные устарели, синхронизируем
+            if is_stale:
+                logger.info(f"Transactions cache miss for {account_id} (stale), syncing...")
+                
+                # Получаем согласие
+                consent = await self._get_active_consent(db, user_id, bank_code)
+                
+                if consent:
+                    # Синхронизируем (по умолчанию 90 дней, или можно больше)
+                    sync_result = await self.sync_account_transactions(
+                        db=db,
+                        user_id=user_id,
+                        account_id=account.id,
+                        bank_code=bank_code,
+                        consent_id=consent.consent_id,
+                        days_back=90 # Можно настроить
+                    )
+                    if not sync_result.get("success"):
+                        logger.warning(f"Failed to sync transactions: {sync_result.get('error')}")
+                        # Продолжаем, чтобы вернуть хотя бы старые данные
+                else:
+                    logger.warning(f"No active consent for {bank_code} to sync transactions")
+            
+            # 4. Возвращаем данные из БД
+            query = select(BankTransaction).where(
+                and_(
+                    BankTransaction.user_id == user_id,
+                    BankTransaction.account_id == account.id
+                )
+            )
+            
+            # Фильтры по дате
+            if from_date:
+                query = query.where(BankTransaction.booking_date >= from_date)
+            if to_date:
+                query = query.where(BankTransaction.booking_date <= to_date)
+            
+            # Сортировка
+            query = query.order_by(desc(BankTransaction.booking_date))
+            
+            # Пагинация
+            # Сначала получаем общее количество
+            count_query = select(func.count()).select_from(query.subquery())
+            count_result = await db.execute(count_query)
+            total_count = count_result.scalar() or 0
+            
+            # Применяем limit/offset
+            offset = (page - 1) * limit
+            query = query.limit(limit).offset(offset)
+            
+            result = await db.execute(query)
+            transactions = result.scalars().all()
+            
+            # Преобразуем в словари для совместимости
+            transactions_list = []
+            for tx in transactions:
+                transactions_list.append({
+                    "transaction_id": tx.transaction_id,
+                    "accountId": account_id,
+                    "account_id": account_id,
+                    "amount": float(tx.amount),
+                    "currency": tx.currency,
+                    "transaction_type": tx.transaction_type,
+                    "creditDebitIndicator": "Credit" if tx.transaction_type == "credit" else "Debit",
+                    "status": "booked", # В БД храним только подтвержденные обычно
+                    "booking_date": tx.booking_date,
+                    "bookingDateTime": tx.booking_date.isoformat() if tx.booking_date else None,
+                    "value_date": tx.value_date,
+                    "valueDateTime": tx.value_date.isoformat() if tx.value_date else None,
+                    "remittance_information": tx.remittance_information,
+                    "transactionInformation": tx.remittance_information,
+                    "creditor_name": tx.creditor_name,
+                    "creditorName": tx.creditor_name,
+                    "creditor_account": tx.creditor_account,
+                    "debtor_name": tx.debtor_name,
+                    "debtorName": tx.debtor_name,
+                    "debtor_account": tx.debtor_account
+                })
+            
+            return {
+                "success": True,
+                "transactions": transactions_list,
+                "total_count": total_count,
+                "page": page,
+                "limit": limit,
+                "source": "database"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in get_transactions_read_through: {e}", exc_info=True)
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
+    async def save_account(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        bank_code: str,
+        account_id: str,
+        account_data: Dict,
+        consent_id: Optional[str] = None
+    ):
+        """Сохранить или обновить счет (публичный метод)"""
+        return await self._save_account(db, user_id, bank_code, account_id, account_data, consent_id)
+
     # ==================== PRIVATE METHODS ====================
     
     async def _save_consent(
@@ -351,7 +613,7 @@ class DataAggregationService:
             account.available_balance = available_balance or account.available_balance
             account.balance_updated_at = datetime.utcnow()
             account.consent_id = consent_id or account.consent_id
-            account.last_synced_at = datetime.utcnow()
+            # Не обновляем last_synced_at здесь, это делается при синхронизации транзакций
             account.is_active = True
         else:
             # Создаем новый счет
@@ -368,7 +630,7 @@ class DataAggregationService:
                 current_balance=current_balance,
                 available_balance=available_balance,
                 balance_updated_at=datetime.utcnow(),
-                last_synced_at=datetime.utcnow()
+                last_synced_at=None # Еще не синхронизированы транзакции
             )
             db.add(account)
         
@@ -474,6 +736,10 @@ class DataAggregationService:
         else:
             booking_date = datetime.utcnow()
         
+        # Normalize timezone info (store as naive UTC)
+        if booking_date and booking_date.tzinfo is not None:
+            booking_date = booking_date.astimezone(timezone.utc).replace(tzinfo=None)
+        
         value_date = None
         if value_date_str:
             try:
@@ -483,6 +749,9 @@ class DataAggregationService:
                     value_date = value_date_str
             except:
                 pass
+        
+        if value_date and value_date.tzinfo is not None:
+            value_date = value_date.astimezone(timezone.utc).replace(tzinfo=None)
         
         # Извлекаем remittance_information (transactionInformation из API)
         remittance_info = (
@@ -554,4 +823,3 @@ class DataAggregationService:
 
 # Глобальный экземпляр
 data_aggregation_service = DataAggregationService()
-

@@ -3,6 +3,20 @@ import { getCookie, eraseCookie } from "../utils/cookies";
 import { getMe, type UserResponse } from "../utils/api";
 import type { AxiosError } from "axios";
 
+const getErrorMessage = (err: AxiosError): string => {
+  const responseData = err.response?.data as any;
+  if (responseData) {
+    if (typeof responseData === 'string') return responseData;
+    if (responseData.detail) {
+        if (typeof responseData.detail === 'string') return responseData.detail;
+        return JSON.stringify(responseData.detail);
+    }
+    // Fallback for other object structures
+    return JSON.stringify(responseData);
+  }
+  return err.message || "Unknown error";
+};
+
 export const useAuth = () => {
   const [user, setUser] = useState<UserResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -27,7 +41,7 @@ export const useAuth = () => {
         const axiosErr = err as AxiosError;
 
         // Сохраняем ошибку
-        setError(axiosErr.response?.data as string ?? axiosErr.message);
+        setError(getErrorMessage(axiosErr));
 
         if (axiosErr.response?.status === 401 || axiosErr.response?.status === 403) {
           console.log("Token invalid or expired, clearing auth state");
@@ -60,7 +74,7 @@ export const useAuth = () => {
       setError(null);
     } catch (err) {
       const axiosErr = err as AxiosError;
-      setError(axiosErr.response?.data as string ?? axiosErr.message);
+      setError(getErrorMessage(axiosErr));
       setUser(null);
       setIsAuthenticated(false);
     }

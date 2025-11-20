@@ -383,6 +383,18 @@ class UniversalBankAPIService:
             
             # ШАГ 2: Удаляем старые согласия (создаем только ОДНО)
             if db and internal_user_id:
+                # Отвязываем старые согласия от счетов перед удалением
+                from app.models import BankAccount
+                from sqlalchemy import update
+                
+                update_stmt = update(BankAccount).where(
+                    and_(
+                        BankAccount.user_id == internal_user_id,
+                        BankAccount.bank_code == bank_code
+                    )
+                ).values(consent_id=None)
+                await db.execute(update_stmt)
+                
                 # Удаляем все существующие согласия для этого пользователя и банка
                 delete_stmt = delete(BankConsent).where(
                     and_(
