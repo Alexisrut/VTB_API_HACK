@@ -31,16 +31,25 @@ export const BankDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [consents, setConsents] = useState<Record<string, BankConsent>>({});
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
+  const loadingRef = React.useRef(false);
 
   const loadData = useCallback(async (force: boolean = false) => {
     if (!me) return;
     
     // Если данные свежие (менее 5 минут) и не принудительное обновление, не загружаем заново
     if (!force && lastUpdated && Date.now() - lastUpdated < 5 * 60 * 1000) {
+      console.log("[BankData] Data is fresh, skipping load");
+      return;
+    }
+
+    // Prevent double loading
+    if (loadingRef.current) {
+      console.log("[BankData] Already loading, skipping");
       return;
     }
 
     try {
+      loadingRef.current = true;
       setIsLoading(true);
       
       // 1. Загружаем согласия
@@ -55,6 +64,7 @@ export const BankDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       console.log("[BankData] Fetching accounts and balances...");
       const accountsResponse = await getAllBankAccounts();
       const accountsData = accountsResponse.data;
+      console.log("[BankData] Accounts response:", accountsData);
       
       if (!accountsData.success) {
         console.warn("[BankData] Failed to get accounts");
@@ -68,6 +78,7 @@ export const BankDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       Object.entries(accountsData.banks || {}).forEach(([bankCode, bankData]) => {
         if (bankData.success && bankData.accounts && bankData.accounts.length > 0) {
+          console.log(`[BankData] Found ${bankData.accounts.length} accounts for ${bankCode}`);
           count += bankData.accounts.length;
           
           bankData.accounts.forEach((account) => {
@@ -131,6 +142,7 @@ export const BankDataProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       console.error("[BankData] Error loading data:", error);
     } finally {
       setIsLoading(false);
+      loadingRef.current = false;
     }
   }, [me, lastUpdated]);
 
