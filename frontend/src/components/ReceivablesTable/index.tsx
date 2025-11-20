@@ -65,65 +65,64 @@ export default function ReceivablesTable() {
       return;
     }
 
-    // Используем захардкоженные данные для демонстрации
-    const mockReceivables: Receivable[] = [
-      {
-        id: "rec-1",
-        counterparty: "Vbank",
-        amount: 450000,
-        dueDate: "15.11",
-        status: "received",
-      },
-      {
-        id: "rec-2",
-        counterparty: "Sbank",
-        amount: 320000,
-        dueDate: "14.11",
-        status: "received",
-      },
-      {
-        id: "rec-3",
-        counterparty: "Abank",
-        amount: 180000,
-        dueDate: "13.11",
-        status: "pending",
-      },
-      {
-        id: "rec-4",
-        counterparty: "Vbank",
-        amount: 275000,
-        dueDate: "12.11",
-        status: "received",
-      },
-      {
-        id: "rec-5",
-        counterparty: "Sbank",
-        amount: 95000,
-        dueDate: "11.11",
-        status: "pending",
-      },
-      {
-        id: "rec-6",
-        counterparty: "Abank",
-        amount: 520000,
-        dueDate: "10.11",
-        status: "received",
-      },
-      {
-        id: "rec-7",
-        counterparty: "Vbank",
-        amount: 68000,
-        dueDate: "09.11",
-        status: "overdue",
-      },
-    ];
+    // // Используем захардкоженные данные для демонстрации
+    // const mockReceivables: Receivable[] = [
+    //   {
+    //     id: "rec-1",
+    //     counterparty: "Vbank",
+    //     amount: 450000,
+    //     dueDate: "15.11",
+    //     status: "received",
+    //   },
+    //   {
+    //     id: "rec-2",
+    //     counterparty: "Sbank",
+    //     amount: 320000,
+    //     dueDate: "14.11",
+    //     status: "received",
+    //   },
+    //   {
+    //     id: "rec-3",
+    //     counterparty: "Abank",
+    //     amount: 180000,
+    //     dueDate: "13.11",
+    //     status: "pending",
+    //   },
+    //   {
+    //     id: "rec-4",
+    //     counterparty: "Vbank",
+    //     amount: 275000,
+    //     dueDate: "12.11",
+    //     status: "received",
+    //   },
+    //   {
+    //     id: "rec-5",
+    //     counterparty: "Sbank",
+    //     amount: 95000,
+    //     dueDate: "11.11",
+    //     status: "pending",
+    //   },
+    //   {
+    //     id: "rec-6",
+    //     counterparty: "Abank",
+    //     amount: 520000,
+    //     dueDate: "10.11",
+    //     status: "received",
+    //   },
+    //   {
+    //     id: "rec-7",
+    //     counterparty: "Vbank",
+    //     amount: 68000,
+    //     dueDate: "09.11",
+    //     status: "overdue",
+    //   },
+    // ];
 
-    setTimeout(() => {
-      setReceivables(mockReceivables);
-      setIsLoading(false);
-    }, 500);
+    // setTimeout(() => {
+    //   setReceivables(mockReceivables);
+    //   setIsLoading(false);
+    // }, 500);
 
-    /* Закомментирован реальный API вызов
     const fetchReceivables = async () => {
       try {
         setIsLoading(true);
@@ -195,40 +194,47 @@ export default function ReceivablesTable() {
                 toDate
               )
                 .then((response) => {
-                  const transactions = response.data.transactions || [];
+                  // API возвращает { data: { transaction: [...] } }
+                  const transactions = response.data?.transaction || response.data?.transactions || [];
                   console.log(`[ReceivablesTable] Received ${transactions.length} transactions for account ${accountId}`);
+                  console.log(`[ReceivablesTable] Full response:`, response.data);
                   
                   // Фильтруем входящие транзакции (Credit)
                   // Берем только первые 5 с каждого банка
                   const creditTransactions = transactions
-                    .filter((tx) => {
-                      const indicator = tx.transaction_type || tx.creditDebitIndicator;
+                    .filter((tx: any) => {
+                      const indicator = tx.creditDebitIndicator;
                       return indicator === "Credit";
                     })
                     .slice(0, 5); // Ограничиваем до 5 транзакций с каждого банка
                   
-                  creditTransactions.forEach((tx) => {
-                    // Извлекаем сумму из нового формата
-                    const amount = tx.amount || 0;
+                  creditTransactions.forEach((tx: any) => {
+                    // Извлекаем сумму из объекта amount: { amount: "383710.09", currency: "RUB" }
+                    const amount = tx.amount?.amount ? parseFloat(tx.amount.amount) : 0;
                     
                     // Используем название банка вместо контрагента
                     const counterparty = bankNames[bankCode] || bankCode;
                     
-                    // Извлекаем дату
-                    const bookingDate = tx.booking_date || tx.bookingDateTime || tx.value_date || tx.valueDateTime;
-                    const status = bookingDate && isOverdue(bookingDate) 
-                      ? "overdue" 
-                      : bookingDate 
-                      ? "pending" 
-                      : "received";
+                    // Извлекаем дату из bookingDateTime
+                    const bookingDate = tx.bookingDateTime || tx.valueDateTime;
+                    
+                    // Определяем статус: completed = received, иначе по дате
+                    let status: "pending" | "overdue" | "received";
+                    if (tx.status === "completed") {
+                      status = "received";
+                    } else if (bookingDate && isOverdue(bookingDate)) {
+                      status = "overdue";
+                    } else {
+                      status = "pending";
+                    }
 
                     receivablesList.push({
-                      id: tx.transaction_id || tx.transactionId || `${accountId}-${tx.transactionReference || Date.now()}`,
+                      id: tx.transactionId || `${accountId}-${Date.now()}`,
                       counterparty,
                       amount,
                       dueDate: formatDate(bookingDate),
-                      status: status as "pending" | "overdue" | "received",
-                      transactionId: tx.transaction_id || tx.transactionId,
+                      status,
+                      transactionId: tx.transactionId,
                     });
                   });
                 })
@@ -270,7 +276,6 @@ export default function ReceivablesTable() {
     };
 
     fetchReceivables();
-    */
   }, [me]);
 
   const getStatusBadge = (status: string) => {
