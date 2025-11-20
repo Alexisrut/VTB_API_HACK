@@ -1,10 +1,9 @@
 import { TooltipProvider } from "./ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "./ui/sonner";
 import Home from "./pages/home";
 import Profile from "./pages/Profile";
-import CashFlow from "./pages/CashFlow";
 import Health from "./pages/Health";
 import Receivables from "./pages/Receivables";
 import Payments from "./pages/Payments";
@@ -39,7 +38,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/profile" element={<Profile />} />
-              <Route path="/cash-flow" element={<CashFlow />} />
+              <Route path="/cash-flow" element={<Navigate to="/health" replace />} />
               <Route path="/health" element={<Health />} />
               <Route path="/receivables" element={<Receivables />} />
               <Route path="/payments" element={<Payments />} />

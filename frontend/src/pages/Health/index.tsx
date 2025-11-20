@@ -4,6 +4,7 @@ import { Heart, TrendingUp, TrendingDown, AlertCircle, DollarSign } from "lucide
 import { useEffect, useState } from "react";
 import { getHealthMetrics, type HealthMetrics } from "../../utils/api";
 import StatCard from "../../components/StatCard";
+import CashFlowChart from "../../components/CashFlowChart";
 import styles from "./index.module.scss";
 import { toast } from "sonner";
 import { useMe } from "../../hooks/context";
@@ -237,6 +238,11 @@ export default function Health() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Cash Flow Forecast Section */}
+            <div className={styles.cashFlowSection}>
+              <CashFlowChart />
             </div>
           </>
         )}

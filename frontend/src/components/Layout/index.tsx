@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
-  TrendingUp,
   Heart,
   Users,
   Calendar,
@@ -17,7 +16,6 @@ import styles from "./index.module.scss";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
-  { name: "Cash Flow", href: "/cash-flow", icon: TrendingUp },
   { name: "Health", href: "/health", icon: Heart },
   { name: "Receivables", href: "/receivables", icon: Users },
   { name: "Payments", href: "/payments", icon: Calendar },
