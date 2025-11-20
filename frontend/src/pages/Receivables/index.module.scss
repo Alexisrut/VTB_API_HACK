@@ -1,4 +1,5 @@
 @use "../../styles/vars" as *;
+@use "../../styles/mixins" as *;
 
 .container {
   padding: 2rem;
@@ -50,33 +51,16 @@
 }
 
 .filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  width: 100%;
+  @include filter-controls;
 }
 
 .filterButton,
 .filterActive {
-  padding: 0.5rem 1rem;
-  border-radius: $radius-md;
-  border: 1px solid $border;
-  background-color: $input;
-  color: $foreground;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s ease;
-
-  &:hover {
-    background-color: $input;
-    border-color: $primary;
-  }
+  @include filter-button-base;
 }
 
 .filterActive {
-  background-color: $primary;
-  color: white;
-  border-color: $primary;
+  @include filter-button-active;
 }
 
 .cardHeaderRow {
@@ -106,27 +90,27 @@
 }
 
 .badgeWarning {
-  background-color: rgba(251, 191, 36, 0.1);
-  color: #f59e0b;
+  background-color: rgba($warning-strong, 0.1);
+  color: $warning-strong;
 }
 
 .badgeSuccess {
-  background-color: rgba(16, 185, 129, 0.1);
-  color: #10b981;
+  background-color: rgba($success-strong, 0.1);
+  color: $success-strong;
 }
 
 .badgeDanger {
-  background-color: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background-color: rgba($danger-strong, 0.1);
+  color: $danger-strong;
 }
 
 .badgeInfo {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
+  background-color: rgba($info, 0.1);
+  color: $info;
 }
 
 .badgeDefault {
-  background-color: rgba(107, 114, 128, 0.1);
-  color: #6b7280;
+  background-color: rgba($muted-strong, 0.1);
+  color: $muted-strong;
 }
 

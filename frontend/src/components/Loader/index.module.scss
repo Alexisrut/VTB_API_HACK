@@ -1,3 +1,5 @@
+@use "../../styles/vars" as *;
+
 /* From Uiverse.io by aryamitra06 */
 .loader {
   display: flex;
@@ -8,7 +10,7 @@
   display: inline-block;
   width: 3px;
   height: 20px;
-  background-color: rgba(255, 255, 255, 0.5);
+  background-color: rgba($foreground, 0.5);
   border-radius: 10px;
   animation: scale-up4 1s linear infinite;
 }
@@ -25,7 +27,7 @@
 
 @keyframes scale-up4 {
   20% {
-    background-color: #ffff;
+    background-color: $foreground;
     transform: scaleY(1.5);
   }
 

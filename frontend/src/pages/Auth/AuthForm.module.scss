@@ -58,12 +58,12 @@
     }
 
     &.fieldError {
-      border-color: #ef4444;
-      box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+      border-color: $danger-strong;
+      box-shadow: 0 0 0 2px rgba($danger-strong, 0.2);
       
       &:focus {
-        border-color: #ef4444;
-        box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.3);
+        border-color: $danger-strong;
+        box-shadow: 0 0 0 2px rgba($danger-strong, 0.3);
       }
     }
 
@@ -128,7 +128,7 @@
 }
 
 .error {
-  color: #ef4444;
+  color: $danger-strong;
   font-size: 0.8rem;
   margin-top: 4px;
   text-align: left;

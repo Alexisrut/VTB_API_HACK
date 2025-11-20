@@ -38,3 +38,47 @@
   background-clip: text;
   text-fill-color: transparent;
 }
+
+/* Бирка статуса / пилл */
+@mixin status-pill($background-color, $text-color) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: $radius-sm;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background-color: $background-color;
+  color: $text-color;
+}
+
+/* Группа фильтров */
+@mixin filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+@mixin filter-button-base {
+  padding: 0.5rem 1rem;
+  border-radius: $radius-md;
+  border: 1px solid $border;
+  background-color: $input;
+  color: $foreground;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+
+  &:hover {
+    background-color: $input;
+    border-color: $primary;
+  }
+}
+
+@mixin filter-button-active {
+  background-color: $primary;
+  color: $primary-foreground;
+  border-color: $primary;
+}

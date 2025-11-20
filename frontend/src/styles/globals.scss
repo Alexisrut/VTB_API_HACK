@@ -45,7 +45,7 @@ body {
 /* Стили для скроллбара (по желанию) */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: 	#8c8c8c transparent;
+  scrollbar-color: $scrollbar-thumb transparent;
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -56,7 +56,7 @@ body {
   }
 
   &::-webkit-scrollbar-thumb {
-    background-color: #8c8c8c;
+    background-color: $scrollbar-thumb;
     border-radius: 20px;
   }
 }
