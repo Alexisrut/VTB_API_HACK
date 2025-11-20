@@ -77,7 +77,7 @@ services:
     ports:
       - "3000:80"
     environment:
-      VITE_API_URL: ${VITE_API_URL:-https://potential-halibut-6x6jgqgvgpxh5q6x-8000.app.github.dev}
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
     depends_on:
       - app
     networks:

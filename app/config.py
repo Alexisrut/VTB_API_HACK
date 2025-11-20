@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     SMS_FROM_NAME: str = "YourApp"
     
     # Frontend
-    FRONTEND_URL: str = "https://potential-halibut-6x6jgqgvgpxh5q6x-5173.app.github.dev"
+    FRONTEND_URL: str = "http://localhost:5173"
     CORS_ORIGINS: str = ""  # Comma-separated list of additional CORS origins
     
     # ==================== КОНФИГУРАЦИЯ ДЛЯ ТРЁХ БАНКОВ ====================

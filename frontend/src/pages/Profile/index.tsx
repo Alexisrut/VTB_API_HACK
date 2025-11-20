@@ -1,15 +1,16 @@
 import { useNavigate } from "react-router-dom";
-import { eraseCookie, setCookie, getCookie } from "../../utils/cookies";
-import { logout, getUserBankUsers, saveBankUser, deleteBankUser, createAccountConsent, getUserConsents, type BankConsent } from "../../utils/api";
+import { eraseCookie, setCookie } from "../../utils/cookies";
+import { logout, getUserBankUsers, saveBankUser, deleteBankUser, createAccountConsent, getUserConsents, getConsentDetails, type BankConsent } from "../../utils/api";
 import Layout from "../../components/Layout";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
-import { CircleUser, Mail, Phone, Building2, Save, Trash2, Shield, CheckCircle2 } from "lucide-react";
+import { CircleUser, Mail, Phone, Building2, Save, Trash2, Shield, CheckCircle2, RefreshCw } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import styles from "./index.module.scss";
 import { useMe } from "../../hooks/context";
+import { useBankData } from "../../hooks/BankDataContext";
 
 const bankNames: { [key: string]: string } = {
   vbank: "Virtual Bank",
@@ -19,6 +20,7 @@ const bankNames: { [key: string]: string } = {
 
 export default function Profile() {
   const me = useMe();
+  const { refreshData: refreshBankData } = useBankData();
   const navigate = useNavigate();
   const [bankUsers, setBankUsers] = useState<Record<string, string>>({});
   const [bankUserInputs, setBankUserInputs] = useState<Record<string, string>>({});
@@ -65,13 +67,6 @@ export default function Profile() {
     if (me) {
       loadBankUsers();
       loadConsents();
-      
-      // Периодически проверяем статус согласий (каждые 10 секунд)
-      const consentCheckInterval = setInterval(() => {
-        loadConsents();
-      }, 10000);
-      
-      return () => clearInterval(consentCheckInterval);
     }
   }, [me, loadBankUsers, loadConsents]);
 
@@ -190,16 +185,14 @@ export default function Profile() {
         [bankCode]: newConsent,
       }));
       
-      // Если согласие pending, запускаем опрос статуса
-      if (response.data.status === "pending") {
-        setPollingConsent((prev) => ({ ...prev, [bankCode]: true }));
+      // Показываем сообщение в зависимости от статуса
+      if (response.data.status === "pending" || response.data.is_request) {
         toast.info(`Согласие для ${bankNames[bankCode]} создано`, {
-          description: "Ожидание одобрения... Проверяю статус...",
-          duration: 3000,
+          description: response.data.is_request 
+            ? "Ожидание одобрения... Используйте кнопку 'Обновить' для проверки статуса"
+            : "Ожидание одобрения... Используйте кнопку 'Обновить' для проверки статуса",
+          duration: 4000,
         });
-        
-        // Запускаем опрос статуса согласия
-        pollConsentStatus(bankCode, response.data.consent_id);
       } else {
         toast.success(`Согласие для ${bankNames[bankCode]} создано`, {
           description: response.data.message || `ID: ${response.data.consent_id}`,
@@ -218,62 +211,54 @@ export default function Profile() {
     }
   };
 
-  const pollConsentStatus = async (bankCode: string, consentId: string) => {
-    const maxAttempts = 100; // 30 попыток
-    const pollInterval = 2000; // 2 секунды
-    
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
-      
-      try {
-        // Перезагружаем согласия для получения актуального статуса
-        const response = await getUserConsents();
-        const consentsMap: Record<string, BankConsent> = {};
-        (response.data.consents || []).forEach((consent: BankConsent) => {
-          consentsMap[consent.bank_code] = consent;
-          setCookie(`consent_${consent.bank_code}`, consent.consent_id, 365);
-        });
-        setConsents(consentsMap);
-        
-        const consent = consentsMap[bankCode];
-        if (consent && consent.status === "approved") {
-          setPollingConsent((prev) => {
-            const newPolling = { ...prev };
-            delete newPolling[bankCode];
-            return newPolling;
-          });
-          toast.success(`Согласие для ${bankNames[bankCode]} одобрено!`, {
-            description: "Счета успешно загружены",
-            duration: 3000,
-          });
-          return;
-        } else if (consent && (consent.status === "revoked" || consent.status === "rejected")) {
-          setPollingConsent((prev) => {
-            const newPolling = { ...prev };
-            delete newPolling[bankCode];
-            return newPolling;
-          });
-          toast.error(`Согласие для ${bankNames[bankCode]} отклонено`, {
-            description: `Статус: ${consent.status}`,
-            duration: 3000,
-          });
-          return;
-        }
-      } catch (error) {
-        console.error(`Error polling consent status (attempt ${attempt}):`, error);
-      }
+  const handleRefreshConsent = async (bankCode: string) => {
+    const consent = consents[bankCode];
+    if (!consent) {
+      toast.error("Согласие не найдено", {
+        description: "Сначала создайте согласие",
+        duration: 2000,
+      });
+      return;
     }
-    
-    // Timeout
-    setPollingConsent((prev) => {
-      const newPolling = { ...prev };
-      delete newPolling[bankCode];
-      return newPolling;
-    });
-    toast.warning(`Превышено время ожидания одобрения согласия для ${bankNames[bankCode]}`, {
-      description: "Проверьте статус вручную",
-      duration: 3000,
-    });
+
+    try {
+      setPollingConsent((prev) => ({ ...prev, [bankCode]: true }));
+      
+      // Отправляем запрос на проверку статуса согласия
+      const response = await getConsentDetails(consent.consent_id, bankCode);
+      
+      // Сохраняем consent_id в куки (может быть обновлен, если был request_id)
+      const updatedConsentId = response.data.consent_id || consent.consent_id;
+      setCookie(`consent_${bankCode}`, updatedConsentId, 365);
+      
+      // Перезагружаем список согласий для получения актуального статуса
+      await loadConsents();
+      
+      // Если статус approved или active, обновляем банковские данные
+      const newStatus = response.data.db_status || consent.status;
+      if (["approved", "active", "valid", "authorized", "given"].includes(newStatus)) {
+        // Фоново обновляем данные
+        refreshBankData();
+      }
+      
+      toast.success(`Статус согласия для ${bankNames[bankCode]} обновлен`, {
+        description: `Текущий статус: ${newStatus}`,
+        duration: 2000,
+      });
+    } catch (error: any) {
+      console.error("Error refreshing consent:", error);
+      const errorMessage = error.response?.data?.detail || error.message || "Попробуйте позже";
+      toast.error("Не удалось обновить статус согласия", {
+        description: errorMessage,
+        duration: 2000,
+      });
+    } finally {
+      setPollingConsent((prev) => {
+        const newPolling = { ...prev };
+        delete newPolling[bankCode];
+        return newPolling;
+      });
+    }
   };
 
   const handleLogout = () => {
@@ -486,15 +471,27 @@ export default function Profile() {
                               <span>Проверяю статус согласия...</span>
                             </div>
                           )}
-                          <Button
-                            size="sm"
-                            onClick={() => handleCreateConsent(bankCode)}
-                            disabled={creatingConsent[bankCode] || !hasBankUser || pollingConsent[bankCode]}
-                            className={styles.createConsentButton}
-                          >
-                            <Shield size={16} />
-                            {creatingConsent[bankCode] ? "Создание..." : "Обновить согласие"}
-                          </Button>
+                          <div className={styles.consentActions}>
+                            <Button
+                              size="sm"
+                              onClick={() => handleRefreshConsent(bankCode)}
+                              disabled={pollingConsent[bankCode] || !consent}
+                              className={styles.createConsentButton}
+                            >
+                              <RefreshCw size={16} />
+                              {pollingConsent[bankCode] ? "Обновление..." : "Обновить"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleCreateConsent(bankCode)}
+                              disabled={creatingConsent[bankCode] || !hasBankUser || pollingConsent[bankCode]}
+                              className={styles.createConsentButton}
+                              variant="outline"
+                            >
+                              <Shield size={16} />
+                              {creatingConsent[bankCode] ? "Создание..." : "Создать новое"}
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <div className={styles.consentInfo}>

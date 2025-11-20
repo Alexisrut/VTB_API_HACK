@@ -97,16 +97,16 @@ start_services() {
     
     if [ "$env" = "dev" ]; then
         echo -e "${BLUE}📍 Access points:${NC}"
-        echo "   Frontend:  https://potential-halibut-6x6jgqgvgpxh5q6x-5173.app.github.dev"
-        echo "   Backend:   https://potential-halibut-6x6jgqgvgpxh5q6x-8000.app.github.dev"
-        echo "   API Docs:  https://potential-halibut-6x6jgqgvgpxh5q6x-8000.app.github.dev/docs"
+        echo "   Frontend:  http://localhost:5173"
+        echo "   Backend:   http://localhost:8000"
+        echo "   API Docs:  http://localhost:8000/docs"
         echo "   PostgreSQL: localhost:5434"
         echo "   Redis:     localhost:6381"
     else
         echo -e "${BLUE}📍 Access points:${NC}"
         echo "   Frontend:  http://localhost:3000"
-        echo "   Backend:   https://potential-halibut-6x6jgqgvgpxh5q6x-8000.app.github.dev"
-        echo "   API Docs:  https://potential-halibut-6x6jgqgvgpxh5q6x-8000.app.github.dev/docs"
+        echo "   Backend:   http://localhost:8000"
+        echo "   API Docs:  http://localhost:8000/docs"
     fi
     
     echo ""

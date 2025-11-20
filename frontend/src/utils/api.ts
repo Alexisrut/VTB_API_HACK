@@ -26,7 +26,7 @@ export interface UserResponse {
 
 const API_URL =
   import.meta.env.VITE_API_URL ||
-  "https://potential-halibut-6x6jgqgvgpxh5q6x-8000.app.github.dev";
+  "http://localhost:8000";
 
 const api = axios.create({
   baseURL: API_URL,
@@ -475,6 +475,7 @@ export interface CreateConsentResponse {
   permissions: string[];
   expires_at: string;
   message: string;
+  is_request?: boolean;
 }
 
 export interface ConsentsResponse {
@@ -502,6 +503,16 @@ export const createAccountConsent = (
 // Получить список согласий пользователя
 export const getUserConsents = () => {
   return api.get<ConsentsResponse>("/api/v1/banks/consents");
+};
+
+// Получить детали согласия и проверить статус
+export const getConsentDetails = (consentId: string, bankCode: string) => {
+  return api.get<{
+    success: boolean;
+    consent: any;
+    db_status: string;
+    consent_id: string;
+  }>(`/api/v1/banks/consents/${consentId}?bank_code=${bankCode}`);
 };
 
 // ==================== ANALYTICS API ====================

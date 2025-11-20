@@ -2,10 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Badge } from "../../ui/badge";
 import { Building2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getAllBankAccounts, getAccountBalances, extractBalanceFromResponse, getAccountId, type BankAccount } from "../../utils/api";
-// import { useAuth } from "../../hooks/useAuth";
+import { type BankAccount } from "../../utils/api";
 import styles from "./index.module.scss";
 import { useMe } from "../../hooks/context";
+import { useBankData } from "../../hooks/BankDataContext";
 
 interface AccountDisplay {
   bank: string;
@@ -22,9 +22,11 @@ const bankNames: { [key: string]: string } = {
   sbank: "Smart Bank",
 };
 
-function formatTimeAgo(date: Date): string {
+function formatTimeAgo(date: number | null): string {
+  if (!date) return "—";
+  
   const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+  const diffMs = now.getTime() - date;
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMs / 3600000);
   const diffDays = Math.floor(diffMs / 86400000);
@@ -43,131 +45,38 @@ function getAccountBalance(account: BankAccount): number {
     (b) => b.balanceType === "InterimAvailable" || b.balanceType === "InterimBooked"
   ) || account.balances[0];
   
-  return parseFloat(balance.balanceAmount.amount) || 0;
+  // Поддерживаем структуру из BankDataContext, где amount это строка
+  const amount = balance.balanceAmount?.amount || (balance as any).amount?.amount || (balance as any).amount || "0";
+  return parseFloat(amount) || 0;
 }
 
 export default function BankAccountsList() {
   const me = useMe();
+  const { accounts: contextAccounts, isLoading, lastUpdated } = useBankData();
   const [accounts, setAccounts] = useState<AccountDisplay[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
 
   useEffect(() => {
-    if (!me) {
-      setIsLoading(false);
-      return;
-    }
-
-    const fetchAccounts = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        console.log("[BankAccountList] Fetching accounts...");
-        const response = await getAllBankAccounts();
-        const data = response.data;
-        
-        console.log("[BankAccountList] Accounts response:", data);
-
-        if (!data.success) {
-          throw new Error("Не удалось получить счета");
-        }
-
-        const accountsList: AccountDisplay[] = [];
-        const balancePromises: Promise<void>[] = [];
-
-        // Обрабатываем счета из всех банков
-        Object.entries(data.banks || {}).forEach(([bankCode, bankData]) => {
-          console.log(`[BankAccountList] Processing bank ${bankCode}:`, bankData);
-          
-          if (bankData.success && bankData.accounts) {
-            console.log(`[BankAccountList] Bank ${bankCode} has ${bankData.accounts.length} accounts`);
-            bankData.accounts.forEach((account) => {
-              // Получаем account_id используя унифицированную функцию
-              const accountId = getAccountId(account);
-              if (!accountId) {
-                console.warn(`[BankAccountList] Skipping account without account_id:`, account);
-                return;
-              }
-              
-              // Используем баланс из данных счета как начальное значение
-              const initialBalance = getAccountBalance(account);
-              const currency = account.currency || account.balances?.[0]?.balanceAmount?.currency || "RUB";
-              
-              const accountDisplay: AccountDisplay = {
-                bank: bankNames[bankCode] || bankCode,
-                balance: initialBalance,
-                currency: currency === "RUB" ? "₽" : currency,
-                lastSync: formatTimeAgo(lastSyncTime),
-                status: "active",
-                accountId: accountId,
-              };
-              
-              accountsList.push(accountDisplay);
-              
-              // Запрашиваем актуальный баланс через API
-              const balancePromise = getAccountBalances(
-                accountId,
-                bankCode,
-                bankData.consent_id
-              )
-                .then((response) => {
-                  console.log(`[BankAccountList] Balance for account ${accountId}:`, response.data);
-                  
-                  // Извлекаем баланс из ответа
-                  const newBalance = extractBalanceFromResponse(response);
-                  console.log(`[BankAccountList] Extracted balance for ${accountId}:`, newBalance);
-                  
-                  // Обновляем баланс в списке (может быть отрицательным для овердрафта)
-                  setAccounts((prev) =>
-                    prev.map((acc) =>
-                      acc.accountId === accountId
-                        ? { ...acc, balance: newBalance }
-                        : acc
-                    )
-                  );
-                })
-                .catch((err) => {
-                  console.error(`[BankAccountList] Error fetching balance for account ${accountId}:`, err);
-                  // Не показываем ошибку пользователю, просто используем начальный баланс
-                });
-              
-              balancePromises.push(balancePromise);
-            });
-          } else {
-            const errorMsg = bankData.error || "No accounts";
-            console.warn(`[BankAccountList] Bank ${bankCode} failed or has no accounts:`, errorMsg);
-            
-            // Show helpful message if bank_user_id is missing
-            if (errorMsg.includes("bank_user_id") || errorMsg.includes("Please set")) {
-              setError(`Для банка ${bankNames[bankCode] || bankCode} необходимо установить ID пользователя в профиле. ${errorMsg}`);
-            }
-          }
-        });
-
-        console.log(`[BankAccountList] Total accounts found: ${accountsList.length}`);
-        setAccounts(accountsList);
-        setLastSyncTime(new Date());
-        
-        // Ждем завершения всех запросов балансов (в фоне, не блокируя UI)
-        Promise.all(balancePromises).then(() => {
-          console.log(`[BankAccountList] All balance requests completed`);
-        });
-      } catch (err: any) {
-        console.error("[BankAccountList] Error fetching bank accounts:", err);
-        console.error("[BankAccountList] Error details:", {
-          message: err.message,
-          response: err.response?.data,
-          status: err.response?.status,
-        });
-        setError(err.response?.data?.detail || err.message || "Ошибка загрузки счетов");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAccounts();
-  }, [me]);
+    if (!me) return;
+    
+    const accountsList: AccountDisplay[] = contextAccounts.map(account => {
+      const balance = getAccountBalance(account);
+      const currency = account.currency || account.balances?.[0]?.balanceAmount?.currency || "RUB";
+      // Получаем bank_code из расширенного объекта (см. BankDataContext)
+      const bankCode = (account as any).bank_code || "vbank";
+      const accountId = account.account_id || account.accountId || account.id || "";
+      
+      return {
+        bank: bankNames[bankCode] || bankCode,
+        balance: balance,
+        currency: currency === "RUB" ? "₽" : currency,
+        lastSync: formatTimeAgo(lastUpdated),
+        status: "active",
+        accountId: accountId,
+      };
+    });
+    
+    setAccounts(accountsList);
+  }, [me, contextAccounts, lastUpdated]);
 
   if (!me) {
     return (
@@ -205,13 +114,9 @@ export default function BankAccountsList() {
         </div>
       </CardHeader>
       <CardContent className={styles.bankCardContent}>
-        {isLoading ? (
+        {isLoading && accounts.length === 0 ? (
           <div className={styles.loadingState}>
             <p>Загрузка счетов...</p>
-          </div>
-        ) : error ? (
-          <div className={styles.errorState}>
-            <p>{error}</p>
           </div>
         ) : accounts.length === 0 ? (
           <div className={styles.emptyState}>

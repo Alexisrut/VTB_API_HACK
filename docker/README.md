@@ -90,7 +90,7 @@ Or directly:
 
 ### Development Environment
 
-- **Frontend**: https://potential-halibut-6x6jgqgvgpxh5q6x-5173.app.github.dev/
+- **Frontend**: http://localhost:5173/
 - **Backend API**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
 - **PostgreSQL**: localhost:5434

@@ -455,16 +455,17 @@ class UniversalBankAPIService:
                         
                         logger.info(f"[{bank_code}] Received consent_id={consent_id}, status={consent_status}, auto_approved={auto_approved}")
                         
-                        # ШАГ 4: НЕМЕДЛЕННО сохраняем consent_id в БД после получения от банка
-                        # Это критично - мы должны сохранить consent_id для дальнейшей проверки статуса
-                        # Используем ТОТ ЖЕ consent_id который вернул банк - не создаем новый!
+                        # ШАГ 4: Определяем, это consent_id или request_id
+                        is_request = consent_id.startswith("req-")
+                        
+                        # ШАГ 5: НЕМЕДЛЕННО сохраняем consent_id/request_id в БД после получения от банка
                         if db and internal_user_id:
                             expires_at = datetime.utcnow() + timedelta(days=365)
                             
                             new_consent = BankConsent(
                                 user_id=internal_user_id,
                                 bank_code=bank_code,
-                                consent_id=consent_id,  # Используем consent_id от банка БЕЗ изменений
+                                consent_id=consent_id,  # Сохраняем как есть (может быть request_id)
                                 status=consent_status,  # Сохраняем текущий статус (pending/approved)
                                 auto_approved=auto_approved,
                                 expires_at=expires_at
@@ -472,47 +473,67 @@ class UniversalBankAPIService:
                             db.add(new_consent)
                             await db.commit()
                             await db.refresh(new_consent)
-                            logger.info(f"[{bank_code}] ✅ Saved consent_id={consent_id} to database with status={consent_status} (immediately after bank response)")
+                            logger.info(f"[{bank_code}] ✅ Saved {'request_id' if is_request else 'consent_id'}={consent_id} to database with status={consent_status}")
                         
-                        # ШАГ 5: Если согласие pending, проверяем статус в интервалах используя ТОТ ЖЕ consent_id
-                        if consent_status == "pending":
-                            logger.info(f"[{bank_code}] Consent {consent_id} is pending, polling for approval using GET /account-consents/{consent_id}...")
-                            approval_result = await self.check_and_poll_consent_approval(
+                        # ШАГ 6: Если это request_id (req-...), отправляем запрос на /account-consents/{request_id}
+                        if is_request:
+                            logger.info(f"[{bank_code}] Received request_id={consent_id}, checking status via GET /account-consents/{consent_id}...")
+                            request_details = await self.get_consent_details(
                                 bank_code=bank_code,
                                 access_token=access_token,
-                                consent_id=consent_id,  # Используем ТОТ ЖЕ consent_id от банка
-                                db=db,
-                                internal_user_id=internal_user_id
+                                consent_id=consent_id  # Используем request_id для запроса
                             )
                             
-                            if approval_result:
-                                consent_status = approval_result.get("status", "pending")
-                                auto_approved = approval_result.get("auto_approved", False)
+                            if request_details:
+                                # Извлекаем данные из ответа
+                                request_data = None
+                                if isinstance(request_details, dict) and "data" in request_details:
+                                    request_data = request_details["data"]
+                                else:
+                                    request_data = request_details
                                 
-                                # Обновляем статус в БД после одобрения используя ТОТ ЖЕ consent_id
-                                if db and internal_user_id:
-                                    update_stmt = select(BankConsent).where(
-                                        and_(
-                                            BankConsent.user_id == internal_user_id,
-                                            BankConsent.bank_code == bank_code,
-                                            BankConsent.consent_id == consent_id  # Ищем по ТОМУ ЖЕ consent_id
-                                        )
-                                    )
-                                    result = await db.execute(update_stmt)
-                                    consent = result.scalar_one_or_none()
-                                    if consent:
-                                        consent.status = consent_status
-                                        consent.auto_approved = auto_approved
-                                        consent.updated_at = datetime.utcnow()
-                                        await db.commit()
-                                        logger.info(f"[{bank_code}] ✅ Updated consent_id={consent_id} status to {consent_status} in database")
+                                if request_data:
+                                    # Проверяем, есть ли consentId в ответе
+                                    final_consent_id = request_data.get("consentId") or request_data.get("consent_id")
+                                    final_status = request_data.get("status", consent_status)
+                                    
+                                    # Если получили consentId, обновляем в БД
+                                    if final_consent_id and final_consent_id != consent_id:
+                                        logger.info(f"[{bank_code}] ✅ Received consentId={final_consent_id} from request_id={consent_id}, updating in DB...")
+                                        
+                                        if db and internal_user_id:
+                                            # Обновляем запись в БД: заменяем request_id на consent_id
+                                            update_stmt = select(BankConsent).where(
+                                                and_(
+                                                    BankConsent.user_id == internal_user_id,
+                                                    BankConsent.bank_code == bank_code,
+                                                    BankConsent.consent_id == consent_id  # Ищем по request_id
+                                                )
+                                            )
+                                            result = await db.execute(update_stmt)
+                                            consent = result.scalar_one_or_none()
+                                            if consent:
+                                                consent.consent_id = final_consent_id
+                                                consent.status = final_status
+                                                consent.updated_at = datetime.utcnow()
+                                                await db.commit()
+                                                logger.info(f"[{bank_code}] ✅ Updated consent_id from {consent_id} to {final_consent_id} in database")
+                                                consent_id = final_consent_id  # Используем новый consent_id
+                                                consent_status = final_status
+                                            else:
+                                                logger.error(f"[{bank_code}] ❌ Request {consent_id} not found in DB for update!")
                                     else:
-                                        logger.error(f"[{bank_code}] ❌ Consent {consent_id} not found in DB for update!")
+                                        # Нет consentId, возможно еще pending
+                                        consent_status = final_status
+                                        logger.info(f"[{bank_code}] Request {consent_id} status: {final_status}, no consentId yet")
+                            else:
+                                logger.warning(f"[{bank_code}] Failed to get request details for {consent_id}")
                         
                         return {
                             "status": consent_status,
-                            "consent_id": consent_id,  # Это ID который используется для GET /account-consents/{consent_id}
-                            "auto_approved": auto_approved
+                            "consent_id": consent_id,  # Может быть request_id или consent_id
+                            "auto_approved": auto_approved,
+                            "is_request": is_request
                         }
                     else:
                         error_text = await resp.text()

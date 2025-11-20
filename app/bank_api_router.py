@@ -339,11 +339,14 @@ async def get_account_balances(
         if not consent_id:
             from app.models import BankConsent
             from sqlalchemy import select, and_
+            
+            # Ищем любое активное согласие (не отозванное)
             stmt = select(BankConsent).where(
                 and_(
                     BankConsent.user_id == user_id,
                     BankConsent.bank_code == bank_code,
-                    BankConsent.status == "approved"
+                    # Разрешаем approved, authorized, valid и т.д., главное не revoked/rejected/pending
+                    BankConsent.status.in_(["approved", "authorized", "authorised", "given", "valid", "active"])
                 )
             ).order_by(BankConsent.created_at.desc())
             result = await db.execute(stmt)
@@ -352,7 +355,7 @@ async def get_account_balances(
             if not consent:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"No active consent found for {bank_code}. Please sync accounts first."
+                    detail=f"No active consent found for {bank_code}. Please check consent status in profile."
                 )
             consent_id = consent.consent_id
             logger.info(f"Using consent_id from DB: {consent_id} for bank {bank_code}")
@@ -849,25 +852,15 @@ async def create_account_consent(
         expires_at = datetime.utcnow() + timedelta(days=365)
         
         # Примечание: consent уже сохранен в БД внутри request_account_consent
-        # ШАГ 1: consent_id получен от банка
-        # ШАГ 2: consent сохранен в БД с текущим статусом (pending/approved) 
-        # ШАГ 3: если pending, request_account_consent уже делает polling и обновит статус
-        # ШАГ 4: после одобрения, consent обновлен в БД и готов к использованию
+        # ШАГ 1: consent_id или request_id получен от банка
+        # ШАГ 2: consent/request сохранен в БД с текущим статусом (pending/approved)
+        # ШАГ 3: если это request_id (req-...), отправлен запрос на /account-consents/{request_id}
+        # ШАГ 4: если получен consentId из request, обновлен в БД
+        # ШАГ 5: пользователь может проверить статус вручную через кнопку "Обновить"
         
-        # Если согласие pending, оно уже сохранено и проверяется внутри request_account_consent
-        # Но запускаем дополнительную фоновую задачу на случай, если основной polling завершится с ошибкой
-        if consent_status == "pending":
-            # Запускаем асинхронную задачу для проверки статуса согласия (как backup)
-            asyncio.create_task(
-                _poll_consent_and_fetch_accounts(
-                    bank_code=bank_code,
-                    consent_id=consent_id,
-                    user_id=user_id,
-                    bank_user_id=bank_user_id,
-                    db=db
-                )
-            )
-            message = f"Согласие создано и ожидает одобрения в банке {bank_code}. Проверяю статус..."
+        # Формируем сообщение в зависимости от статуса
+        if consent_status == "pending" or consent_data.get("is_request"):
+            message = f"Согласие создано и ожидает одобрения в банке {bank_code}. Используйте кнопку 'Обновить' для проверки статуса."
         else:
             # Если согласие сразу одобрено, получаем счета
             try:
@@ -1063,26 +1056,47 @@ async def get_consent_details(
                 detail="Consent not found or revoked at bank"
             )
         
-        # Извлекаем актуальный статус из ответа банка
-        bank_status = None
-        if isinstance(consent_data, dict):
-            if "data" in consent_data:
-                bank_status = consent_data["data"].get("status")
-            else:
-                bank_status = consent_data.get("status")
+        # Извлекаем данные из ответа
+        response_data = None
+        if isinstance(consent_data, dict) and "data" in consent_data:
+            response_data = consent_data["data"]
+        else:
+            response_data = consent_data
+        
+        # Извлекаем актуальный статус и consentId из ответа банка
+        bank_status = response_data.get("status") if response_data else None
+        consent_id_from_response = response_data.get("consentId") or response_data.get("consent_id") if response_data else None
+        
+        # Если это request_id (req-...) и пришел consentId, обновляем в БД
+        if consent_id.startswith("req-") and consent_id_from_response and consent_id_from_response != consent_id:
+            logger.info(f"[{bank_code}] Request {consent_id} approved, updating to consent_id={consent_id_from_response}")
+            db_consent.consent_id = consent_id_from_response
+            consent_id = consent_id_from_response  # Используем новый ID для дальнейшей обработки
         
         # Обновляем статус в БД, если изменился
-        if bank_status and bank_status.lower() != db_consent.status:
-            old_status = db_consent.status
-            db_consent.status = bank_status.lower()
-            db_consent.updated_at = datetime.utcnow()
-            await db.commit()
-            logger.info(f"[{bank_code}] Consent {consent_id} status updated from {old_status} to {bank_status.lower()}")
+        if bank_status:
+            bank_status_lower = bank_status.lower()
+            
+            # Маппинг статусов: authorized/given/valid -> approved
+            if bank_status_lower in ["authorized", "authorised", "given", "valid", "active"]:
+                bank_status_lower = "approved"
+            
+            if bank_status_lower != db_consent.status:
+                old_status = db_consent.status
+                db_consent.status = bank_status_lower
+                db_consent.updated_at = datetime.utcnow()
+                await db.commit()
+                logger.info(f"[{bank_code}] Consent {consent_id} status updated from {old_status} to {bank_status_lower}")
+            else:
+                # Обновляем updated_at даже если статус не изменился
+                db_consent.updated_at = datetime.utcnow()
+                await db.commit()
         
         return {
             "success": True,
             "consent": consent_data,
-            "db_status": db_consent.status
+            "db_status": db_consent.status,
+            "consent_id": db_consent.consent_id
         }
     
     except HTTPException:

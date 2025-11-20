@@ -56,7 +56,7 @@ cd finflow
 
 Приложение будет доступно:
 
-Frontend: https://potential-halibut-6x6jgqgvgpxh5q6x-5173.app.github.dev/ (dev) или http://localhost:3000 (prod)
+Frontend: http://localhost:5173/ (dev) или http://localhost:3000 (prod)
 
 Backend API: http://localhost:8000
 

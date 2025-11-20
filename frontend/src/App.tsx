@@ -12,42 +12,44 @@ import Settings from "./pages/Settings";
 import OAuthSuccess from "./pages/Auth/OAuthSuccess";
 import NotFound from "./pages/NotFound";
 import { AppContextProvider } from "./hooks/context";
+import { BankDataProvider } from "./hooks/BankDataContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AppContextProvider>
-
-    <TooltipProvider>
-      <Toaster 
-        position="top-center"
-        richColors
-        closeButton={false}
-        duration={1500}
-        toastOptions={{
-          style: {
-            minWidth: '400px',
-            fontSize: '16px',
-            padding: '16px 20px',
-          },
-          className: 'custom-toast',
-        }}
-        />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/cash-flow" element={<CashFlow />} />
-          <Route path="/health" element={<Health />} />
-          <Route path="/receivables" element={<Receivables />} />
-          <Route path="/payments" element={<Payments />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/auth/success" element={<OAuthSuccess />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+      <BankDataProvider>
+        <TooltipProvider>
+          <Toaster 
+            position="top-center"
+            richColors
+            closeButton={false}
+            duration={1500}
+            toastOptions={{
+              style: {
+                minWidth: '400px',
+                fontSize: '16px',
+                padding: '16px 20px',
+              },
+              className: 'custom-toast',
+            }}
+            />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="/cash-flow" element={<CashFlow />} />
+              <Route path="/health" element={<Health />} />
+              <Route path="/receivables" element={<Receivables />} />
+              <Route path="/payments" element={<Payments />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/auth/success" element={<OAuthSuccess />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </BankDataProvider>
     </AppContextProvider>
   </QueryClientProvider>
 );
