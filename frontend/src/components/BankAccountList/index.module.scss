@@ -136,3 +136,25 @@
     background-color: rgba($accent, 0.3);
   }
 }
+
+@media (max-width: 640px) {
+  .accountItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .itemDetails {
+    width: 100%;
+  }
+
+  .itemBalance {
+    width: 100%;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .balanceAmount {
+    font-size: 1.05rem;
+  }
+}

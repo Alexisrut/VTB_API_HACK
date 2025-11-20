@@ -137,7 +137,7 @@ export default function Receivables() {
 
         <Card>
           <CardHeader>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className={styles.cardHeaderRow}>
               <CardTitle>Счета к получению</CardTitle>
               <div className={styles.filters}>
                 <button

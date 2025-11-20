@@ -90,10 +90,14 @@
 }
 
 .infoLabel {
-  font-size: 0.875rem;
   color: $muted-foreground;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  
+  font-size: clamp(0.625rem, 0.875rem, 1rem);
 }
 
 .infoValue {
@@ -302,6 +306,63 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 768px) {
+  .profileContainer {
+    padding: 1rem 0.75rem 2rem;
+  }
+
+  .profileCard {
+    padding: 1.5rem;
+    gap: 1.5rem;
+  }
+
+  .profileName {
+    font-size: 1.5rem;
+  }
+
+  .infoItem {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
+
+  .infoValue {
+    font-size: 1rem;
+    word-break: break-word;
+  }
+
+  .consentInputGroup {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .consentActions {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .saveButton,
+  .deleteButton,
+  .createConsentButton {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .consentHeader {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .consentStatus {
+    margin-left: 0;
+  }
+
+  .consentDetail {
+    flex-direction: column;
+    gap: 0.25rem;
   }
 }
 

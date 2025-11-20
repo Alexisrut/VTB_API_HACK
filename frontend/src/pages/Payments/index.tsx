@@ -142,7 +142,7 @@ export default function Payments() {
 
         <Card>
           <CardHeader>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className={styles.cardHeaderRow}>
               <CardTitle>Транзакции</CardTitle>
               <div className={styles.filters}>
                 <button

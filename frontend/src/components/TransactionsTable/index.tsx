@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../../ui/table";
 import { type BankTransaction } from "../../utils/api";
@@ -90,6 +91,22 @@ export default function TransactionsTable({
   emptyMessage = "Нет транзакций",
   limit,
 }: TransactionsTableProps) {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mediaQuery = window.matchMedia("(max-width: 768px)");
+    const handleChange = () => setIsMobile(mediaQuery.matches);
+    handleChange();
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", handleChange);
+      return () => mediaQuery.removeEventListener("change", handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+      return () => mediaQuery.removeListener(handleChange);
+    }
+  }, []);
+
   const visibleTransactions = limit ? transactions.slice(0, limit) : transactions;
 
   if (isLoading) {
@@ -112,6 +129,44 @@ export default function TransactionsTable({
     return (
       <div className={styles.message}>
         <p>{emptyMessage}</p>
+      </div>
+    );
+  }
+
+  if (isMobile) {
+    return (
+      <div className={styles.mobileList}>
+        {visibleTransactions.map((tx) => {
+          const indicatorRaw = tx.transaction_type || tx.creditDebitIndicator;
+          const indicator = indicatorRaw ? indicatorRaw.toString().toLowerCase() : "";
+          const isCredit = indicator === "credit";
+          const txAmount = extractAmount(tx.amount);
+          const txDate = tx.booking_date || tx.bookingDateTime || tx.value_date || tx.valueDateTime;
+          const bankName = tx.bankName || (tx.bankCode ? fallbackBankNames[tx.bankCode] || tx.bankCode : "—");
+          const txId = tx.transaction_id || tx.transactionId || tx.transactionReference || `${txDate}-${txAmount}`;
+
+          return (
+            <div className={styles.mobileCard} key={txId}>
+              <div className={styles.mobileRow}>
+                <span className={styles.mobileDate}>{formatDate(txDate)}</span>
+                <span className={styles.mobileStatus}>{tx.status || "Booked"}</span>
+              </div>
+              <div className={styles.mobileRow}>
+                <span className={styles.mobileBank}>{bankName}</span>
+                <span className={isCredit ? styles.amountIncome : styles.amountExpense}>
+                  {isCredit ? "+" : "-"}₽{formatAmount(txAmount)}
+                </span>
+              </div>
+              <p className={styles.mobileDescription}>{extractDescription(tx)}</p>
+              <div className={styles.mobileRow}>
+                <div className={isCredit ? styles.typeIncome : styles.typeExpense}>
+                  {isCredit ? <ArrowUpCircle size={16} /> : <ArrowDownCircle size={16} />}
+                  <span>{isCredit ? "Доход" : "Расход"}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }
