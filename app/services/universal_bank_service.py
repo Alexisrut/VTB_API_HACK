@@ -251,13 +251,55 @@ class UniversalBankAPIService:
                 
                 # Извлекаем статус из разных возможных форматов ответа
                 status = None
+                consent_data = None
                 if isinstance(consent_details, dict):
                     if "data" in consent_details:
-                        status = consent_details["data"].get("status")
+                        consent_data = consent_details["data"]
+                        status = consent_data.get("status")
                     else:
-                        status = consent_details.get("status")
+                        consent_data = consent_details
+                        status = consent_data.get("status")
                 
-                if status == "approved" or status == "Authorised":
+                # ШАГ 2: Если статус "Authorized", обновляем consent_id с данными из поля "consentId"
+                if status and status.lower() in ["authorized", "authorised"]:
+                    # Извлекаем новый consentId из ответа
+                    new_consent_id = None
+                    if consent_data:
+                        new_consent_id = consent_data.get("consentId") or consent_data.get("consent_id")
+                    
+                    # Если получили новый consentId, обновляем его в БД
+                    if new_consent_id and new_consent_id != consent_id and db and internal_user_id:
+                        logger.info(f"[{bank_code}] Consent authorized! Updating consent_id from {consent_id} to {new_consent_id}")
+                        
+                        # Обновляем consent_id в БД
+                        update_stmt = select(BankConsent).where(
+                            and_(
+                                BankConsent.user_id == internal_user_id,
+                                BankConsent.bank_code == bank_code,
+                                BankConsent.consent_id == consent_id
+                            )
+                        )
+                        result = await db.execute(update_stmt)
+                        consent = result.scalar_one_or_none()
+                        
+                        if consent:
+                            consent.consent_id = new_consent_id
+                            consent.status = "approved"
+                            consent.updated_at = datetime.utcnow()
+                            await db.commit()
+                            logger.info(f"[{bank_code}] ✅ Updated consent_id to {new_consent_id} in database")
+                            consent_id = new_consent_id  # Используем новый ID для возврата
+                        else:
+                            logger.warning(f"[{bank_code}] Consent {consent_id} not found in DB for update, but continuing...")
+                    
+                    logger.info(f"[{bank_code}] Consent {consent_id} approved!")
+                    return {
+                        "status": "approved",
+                        "consent_id": consent_id,  # Возвращаем обновленный consent_id если был обновлен
+                        "auto_approved": False
+                    }
+                
+                if status == "approved":
                     logger.info(f"[{bank_code}] Consent {consent_id} approved!")
                     return {
                         "status": "approved",
@@ -370,7 +412,12 @@ class UniversalBankAPIService:
                     "requesting_bank_name": bank.requesting_bank_name
                 }
                 
-                logger.info(f"[{bank_code}] Requesting account consent for user {user_id}")
+                logger.info(f"[{bank_code}] Requesting account consent:")
+                logger.info(f"  URL: {url}")
+                logger.info(f"  Headers: {headers}")
+                logger.info(f"  Body: {body}")
+                logger.info(f"  User ID: {user_id}")
+                
                 async with session.post(url, json=body, headers=headers) as resp:
                     if resp.status in [200, 201]:
                         data = await resp.json()
@@ -387,18 +434,24 @@ class UniversalBankAPIService:
                             # Вложенный формат
                             consent_data = data["data"]
                             consent_status = consent_data.get("status", "approved")
-                            consent_id = consent_data.get("consent_id")
+                            # ШАГ 1: Банк может вернуть consent_id ИЛИ request_id - используем любой из них
+                            consent_id = consent_data.get("consent_id") or consent_data.get("request_id")
                             auto_approved = consent_data.get("auto_approved", True)
                         else:
                             # Плоский формат (как в примере API)
                             consent_status = data.get("status", "approved")
-                            consent_id = data.get("consent_id")
+                            # ШАГ 1: Банк может вернуть consent_id ИЛИ request_id - используем любой из них
+                            consent_id = data.get("consent_id") or data.get("request_id")
                             auto_approved = data.get("auto_approved", True)
                         
-                        # КРИТИЧНО: consent_id обязателен - это ID для проверки статуса
+                        # КРИТИЧНО: consent_id или request_id обязателен - это ID для проверки статуса
                         if not consent_id:
-                            logger.error(f"[{bank_code}] No consent_id received from bank API. Response: {data}")
-                            return None
+                            logger.error(f"[{bank_code}] ❌ No consent_id or request_id received from bank API. Response: {data}")
+                            return {
+                                "error": True,
+                                "error_message": f"No consent_id or request_id in bank response. Response: {data}",
+                                "response_data": data
+                            }
                         
                         logger.info(f"[{bank_code}] Received consent_id={consent_id}, status={consent_status}, auto_approved={auto_approved}")
                         
@@ -463,11 +516,22 @@ class UniversalBankAPIService:
                         }
                     else:
                         error_text = await resp.text()
-                        logger.error(f"[{bank_code}] Failed to request consent: {resp.status} - {error_text}")
-                        return None
+                        logger.error(f"[{bank_code}] ❌ Failed to request consent: HTTP {resp.status} - {error_text}")
+                        # Return error details instead of None for better debugging
+                        return {
+                            "error": True,
+                            "status_code": resp.status,
+                            "error_message": error_text,
+                            "url": url
+                        }
         except Exception as e:
-            logger.error(f"[{bank_code}] Error requesting consent: {e}", exc_info=True)
-            return None
+            logger.error(f"[{bank_code}] ❌ Error requesting consent: {e}", exc_info=True)
+            # Return error details instead of None
+            return {
+                "error": True,
+                "error_message": str(e),
+                "error_type": type(e).__name__
+            }
     
     async def validate_consent_for_use(
         self,
