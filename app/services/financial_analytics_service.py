@@ -18,7 +18,7 @@ from app.services.universal_bank_service import universal_bank_service
 
 logger = logging.getLogger(__name__)
 
-USE_MOCK_FINANCIAL_DATA = True
+USE_MOCK_FINANCIAL_DATA = False
 
 
 class FinancialAnalyticsService:

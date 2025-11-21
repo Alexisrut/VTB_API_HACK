@@ -17,7 +17,7 @@ from app.models import (
 
 logger = logging.getLogger(__name__)
 
-USE_MOCK_PREDICTION_DATA = True
+USE_MOCK_PREDICTION_DATA = False
 
 
 class MLPredictionService:
