@@ -137,8 +137,8 @@ class UniversalBankAPIService:
             async with aiohttp.ClientSession() as session:
                 url = f"{bank.api_url}/auth/bank-token"
                 params = {
-                    "client_id": "team261",
-                    "client_secret": "24ADfpV1IyoAAP7d"
+                    "client_id": bank.client_id,
+                    "client_secret": bank.client_secret
                 }
                 
                 logger.info(f"[{bank_code}] Getting bank token from {url} with client_id={bank.client_id}")

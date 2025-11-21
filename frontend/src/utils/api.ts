@@ -455,6 +455,39 @@ export const deleteBankUser = (bankCode: string) => {
   return api.delete(`/users/me/bank-users/${bankCode}`);
 };
 
+// ==================== BANKS API ====================
+
+export interface BankInfo {
+  bank_code: string;
+  bank_name: string;
+  api_url: string;
+  bank_user_id: string | null;
+  has_consent: boolean;
+  consent_status: string | null;
+}
+
+export interface BankListResponse {
+  banks: BankInfo[];
+}
+
+export interface BankCreateRequest {
+  bank_code: string;
+  bank_name: string;
+  use_standard_url?: boolean;
+  api_url?: string | null;
+  bank_user_id: string;
+}
+
+// Получить список всех банков пользователя
+export const getUserBanks = () => {
+  return api.get<BankListResponse>("/users/me/banks");
+};
+
+// Создать новый банк
+export const createBank = (bankData: BankCreateRequest) => {
+  return api.post<BankInfo>("/users/me/banks", bankData);
+};
+
 // ==================== CONSENTS API ====================
 
 export interface BankConsent {
