@@ -1,5 +1,11 @@
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "../../ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../../ui/tooltip";
 import cn from "classnames"
 import styles from "./index.module.scss";
 
@@ -11,6 +17,7 @@ interface StatCardProps {
   subtitle?: string;
   icon: LucideIcon;
   variant?: Variant;
+  tooltip?: string;
   trend?: {
     value: string;
     isPositive: boolean;
@@ -23,6 +30,7 @@ export default function StatCard({
   subtitle,
   icon: Icon,
   variant = "default",
+  tooltip,
   trend,
 }: StatCardProps) {
 
@@ -38,7 +46,18 @@ export default function StatCard({
 
           <div className={styles.textSection}>
             <p className={styles.title}>{title}</p>
-            <p className={styles.value}>{value}</p>
+            {tooltip ? (
+              <TooltipProvider delayDuration={150}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className={styles.value}>{value}</p>
+                  </TooltipTrigger>
+                  <TooltipContent>{tooltip}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <p className={styles.value}>{value}</p>
+            )}
 
             {subtitle && (
               <p className={styles.subtitle}>{subtitle}</p>

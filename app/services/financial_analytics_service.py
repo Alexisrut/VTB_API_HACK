@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, Optional, List
 from decimal import Decimal
+from types import SimpleNamespace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func, case
 from sqlalchemy.orm import selectinload
@@ -16,6 +17,8 @@ from app.models import (
 from app.services.universal_bank_service import universal_bank_service
 
 logger = logging.getLogger(__name__)
+
+USE_MOCK_FINANCIAL_DATA = True
 
 
 class FinancialAnalyticsService:
@@ -97,9 +100,13 @@ class FinancialAnalyticsService:
             
             # Коэффициенты ликвидности
             current_assets = metrics["total_assets"]
-            current_liabilities = metrics["total_liabilities"] or Decimal(1)  # Избегаем деления на 0
-            if current_liabilities > 0:
+            current_liabilities = metrics["total_liabilities"]
+            if current_liabilities and current_liabilities > 0:
                 metrics["current_ratio"] = current_assets / current_liabilities
+                metrics["quick_ratio"] = metrics["current_ratio"]
+            else:
+                metrics["current_ratio"] = None
+                metrics["quick_ratio"] = None
             
             # Оборачиваемость ДЗ
             if metrics["total_revenue"] > 0:
@@ -120,13 +127,14 @@ class FinancialAnalyticsService:
             metrics["health_status"] = self._get_health_status(metrics["health_score"])
             
             # Сохраняем метрики
-            await self._save_metrics(
-                db=db,
-                user_id=user_id,
-                period_start=period_start,
-                period_end=period_end,
-                metrics=metrics
-            )
+            if not USE_MOCK_FINANCIAL_DATA:
+                await self._save_metrics(
+                    db=db,
+                    user_id=user_id,
+                    period_start=period_start,
+                    period_end=period_end,
+                    metrics=metrics
+                )
             
             return {
                 "success": True,
@@ -218,6 +226,9 @@ class FinancialAnalyticsService:
         period_end: datetime
     ) -> List:
         """Получить транзакции за период"""
+        if USE_MOCK_FINANCIAL_DATA:
+            return self._get_mock_transactions(period_start, period_end)
+
         stmt = select(BankTransaction).where(
             and_(
                 BankTransaction.user_id == user_id,
@@ -234,6 +245,9 @@ class FinancialAnalyticsService:
         user_id: int
     ) -> List:
         """Получить активные счета пользователя"""
+        if USE_MOCK_FINANCIAL_DATA:
+            return self._get_mock_accounts()
+
         stmt = select(BankAccount).where(
             and_(
                 BankAccount.user_id == user_id,
@@ -249,14 +263,17 @@ class FinancialAnalyticsService:
         user_id: int
     ) -> Dict:
         """Получить данные по дебиторской задолженности"""
-        stmt = select(AccountsReceivable).where(
-            and_(
-                AccountsReceivable.user_id == user_id,
-                AccountsReceivable.status.in_(["pending", "partial", "overdue"])
+        if USE_MOCK_FINANCIAL_DATA:
+            ar_list = self._get_mock_accounts_receivable()
+        else:
+            stmt = select(AccountsReceivable).where(
+                and_(
+                    AccountsReceivable.user_id == user_id,
+                    AccountsReceivable.status.in_(["pending", "partial", "overdue"])
+                )
             )
-        )
-        result = await db.execute(stmt)
-        ar_list = result.scalars().all()
+            result = await db.execute(stmt)
+            ar_list = result.scalars().all()
         
         total = sum(
             (ar.amount - ar.paid_amount) 
@@ -277,19 +294,25 @@ class FinancialAnalyticsService:
     
     def _calculate_revenue(self, transactions: List) -> Decimal:
         """Рассчитать доходы из транзакций БД"""
-        return sum(
-            tx.amount 
-            for tx in transactions 
-            if tx.category == "income" or tx.transaction_type == "Credit"
-        )
+        total = Decimal(0)
+        for tx in transactions:
+            tx_type = (tx.transaction_type or "").lower()
+            category = (tx.category or "").lower()
+            if category == "income" or tx_type == "credit":
+                amount = tx.amount or Decimal(0)
+                total += abs(Decimal(amount))
+        return total
     
     def _calculate_expenses(self, transactions: List) -> Decimal:
         """Рассчитать расходы из транзакций БД"""
-        return sum(
-            tx.amount 
-            for tx in transactions 
-            if tx.category == "expense" or tx.transaction_type == "Debit"
-        )
+        total = Decimal(0)
+        for tx in transactions:
+            tx_type = (tx.transaction_type or "").lower()
+            category = (tx.category or "").lower()
+            if category == "expense" or tx_type == "debit":
+                amount = tx.amount or Decimal(0)
+                total += abs(Decimal(amount))
+        return total
     
     def _calculate_revenue_from_bank_transactions(self, transactions: List[Dict]) -> Decimal:
         """Рассчитать доходы из транзакций банков"""
@@ -335,6 +358,9 @@ class FinancialAnalyticsService:
         period_end: datetime
     ) -> List[Dict]:
         """Получить транзакции из всех банков напрямую через API"""
+        if USE_MOCK_FINANCIAL_DATA:
+            return self._get_mock_bank_transactions()
+
         all_transactions = []
         
         try:
@@ -579,6 +605,9 @@ class FinancialAnalyticsService:
         metrics: Dict
     ):
         """Сохранить метрики в БД"""
+        if USE_MOCK_FINANCIAL_DATA:
+            return None
+
         health_metrics = FinancialHealthMetrics(
             user_id=user_id,
             period_start=period_start,
@@ -624,6 +653,97 @@ class FinancialAnalyticsService:
                 "net_income": float(metrics.net_income) if metrics.net_income else 0
             }
         return {}
+
+
+    def _get_mock_transactions(
+        self,
+        period_start: datetime,
+        period_end: datetime
+    ) -> List:
+        now = datetime.utcnow()
+        samples = [
+            {"amount": "450000", "category": "income", "transaction_type": "Credit", "days_ago": 5},
+            {"amount": "320000", "category": "income", "transaction_type": "Credit", "days_ago": 12},
+            {"amount": "180000", "category": "income", "transaction_type": "Credit", "days_ago": 24},
+            {"amount": "210000", "category": "expense", "transaction_type": "Debit", "days_ago": 4},
+            {"amount": "165000", "category": "expense", "transaction_type": "Debit", "days_ago": 10},
+            {"amount": "95000", "category": "expense", "transaction_type": "Debit", "days_ago": 17},
+        ]
+        txs: List = []
+        for sample in samples:
+            booking_date = now - timedelta(days=sample["days_ago"])
+            if booking_date < period_start or booking_date > period_end:
+                continue
+            txs.append(
+                SimpleNamespace(
+                    amount=Decimal(sample["amount"]),
+                    category=sample["category"],
+                    transaction_type=sample["transaction_type"],
+                    booking_date=booking_date,
+                )
+            )
+        return txs
+
+    def _get_mock_accounts(self) -> List:
+        return [
+            SimpleNamespace(
+                current_balance=Decimal("1850000"),
+                available_balance=Decimal("1700000"),
+                is_active=True,
+                bank_code="mockbank",
+                account_id="mock-acc-1",
+            ),
+            SimpleNamespace(
+                current_balance=Decimal("820000"),
+                available_balance=Decimal("800000"),
+                is_active=True,
+                bank_code="mockbank",
+                account_id="mock-acc-2",
+            ),
+        ]
+
+    def _get_mock_accounts_receivable(self) -> List:
+        now = datetime.utcnow()
+        return [
+            SimpleNamespace(
+                amount=Decimal("320000"),
+                paid_amount=Decimal("120000"),
+                status="partial",
+                due_date=now + timedelta(days=5),
+            ),
+            SimpleNamespace(
+                amount=Decimal("210000"),
+                paid_amount=Decimal("0"),
+                status="pending",
+                due_date=now + timedelta(days=12),
+            ),
+            SimpleNamespace(
+                amount=Decimal("180000"),
+                paid_amount=Decimal("0"),
+                status="overdue",
+                due_date=now - timedelta(days=7),
+            ),
+        ]
+
+    def _get_mock_bank_transactions(self) -> List[Dict]:
+        now = datetime.utcnow()
+        return [
+            {
+                "transaction_type": "credit",
+                "amount": "420000",
+                "booking_date": (now - timedelta(days=3)).isoformat(),
+            },
+            {
+                "transaction_type": "debit",
+                "amount": "185000",
+                "booking_date": (now - timedelta(days=2)).isoformat(),
+            },
+            {
+                "transaction_type": "credit",
+                "amount": "360000",
+                "booking_date": (now - timedelta(days=10)).isoformat(),
+            },
+        ]
 
 
 # Глобальный экземпляр

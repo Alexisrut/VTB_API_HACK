@@ -92,3 +92,17 @@
   font-weight: 600;
   color: $muted-foreground;
 }
+
+.chartMeta {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  font-size: 0.9rem;
+  color: $muted-foreground;
+
+  strong {
+    color: $foreground;
+  }
+}

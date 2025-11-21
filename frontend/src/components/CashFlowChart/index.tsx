@@ -10,8 +10,7 @@ import {
   YAxis,
   ReferenceLine,
 } from "recharts";
-import { useEffect, useState } from "react";
-import { useAuth } from "../../hooks/useAuth";
+import { useEffect, useMemo, useState } from "react";
 import { getCashFlowPredictions } from "../../utils/api";
 import styles from "./index.module.scss";
 import {
@@ -29,77 +28,70 @@ import { useMe } from "../../hooks/context";
 // Утилита для создания HSL-цвета для Recharts (требуется для градиентов)
 const getHslColor = (h: string, s: string, l: string) => `hsl(${h}, ${s}, ${l})`;
 
+type ChartPoint = {
+  date: string;
+  balance: number;
+  inflow: number;
+  gapProbability?: number | null;
+  gapAmount?: number | null;
+};
+
 export default function CashFlowChart() {
   const me = useMe();
-  const [data, setData] = useState<Array<{ date: string; actual: number | null; predicted: number | null }>>([]);
+  const [data, setData] = useState<ChartPoint[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentBalance, setCurrentBalance] = useState<number | null>(null);
 
   useEffect(() => {
     if (!me) {
       setData([]);
+      setCurrentBalance(null);
       return;
     }
 
-    // Используем захардкоженные данные для демонстрации
-    const today = new Date();
-    const mockChartData = [
-      {
-        date: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", {
-          day: "2-digit",
-          month: "short",
-        }),
-        actual: null,
-        predicted: 1250000,
-      },
-      {
-        date: new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", {
-          day: "2-digit",
-          month: "short",
-        }),
-        actual: null,
-        predicted: 980000,
-      },
-      {
-        date: new Date(today.getTime() + 21 * 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", {
-          day: "2-digit",
-          month: "short",
-        }),
-        actual: null,
-        predicted: -120000,
-      },
-      {
-        date: new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000).toLocaleDateString("ru-RU", {
-          day: "2-digit",
-          month: "short",
-        }),
-        actual: null,
-        predicted: 340000,
-      },
-    ];
-
-    setTimeout(() => {
-      setData(mockChartData);
-      setIsLoading(false);
-    }, 300);
-
-    /* Закомментирован реальный API вызов
     const fetchPredictions = async () => {
       try {
         setIsLoading(true);
+        setError(null);
+
         const response = await getCashFlowPredictions(4);
-        if (response.data.success && response.data.predictions) {
-          const chartData = response.data.predictions.map((p) => ({
-            date: new Date(p.prediction_date).toLocaleDateString("ru-RU", {
-              day: "2-digit",
-              month: "short",
-            }),
-            actual: null,
-            predicted: p.predicted_balance,
-          }));
+
+        if (response.data.success && response.data.predictions?.length) {
+          const chartData: ChartPoint[] = response.data.predictions.map((p) => {
+            const dateSource = p.date || (p as any).prediction_date;
+            const dateLabel = dateSource
+              ? new Date(dateSource).toLocaleDateString("ru-RU", {
+                  day: "2-digit",
+                  month: "short",
+                })
+              : `Неделя ${p.week}`;
+
+            return {
+              date: dateLabel,
+              balance: p.predicted_balance,
+              inflow: p.predicted_inflow,
+              gapProbability: p.gap_probability,
+              gapAmount: p.gap_amount,
+            };
+          });
+
           setData(chartData);
+          setCurrentBalance(response.data.current_balance ?? null);
+        } else {
+          setData([]);
+          setError(
+            response.data.error ||
+              "Нет данных прогноза. Попробуйте обновить позже."
+          );
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error fetching cash flow predictions:", err);
+        const detail =
+          err.response?.data?.detail ||
+          err.response?.data?.error ||
+          "Не удалось загрузить прогноз денежных потоков";
+        setError(detail);
         setData([]);
       } finally {
         setIsLoading(false);
@@ -107,15 +99,24 @@ export default function CashFlowChart() {
     };
 
     fetchPredictions();
-    */
   }, [me]);
 
   const primaryHslString = getHslColor(primaryHslParts[0], primaryHslParts[1], primaryHslParts[2]);
   const accentHslString = getHslColor(accentHslParts[0], accentHslParts[1], accentHslParts[2]);
   const RefLine = ReferenceLine;
-  
+
   const hasData = data.length > 0;
-  
+  const highestRisk = useMemo(() => {
+    if (!data.length) return null;
+    return data.reduce((prev, curr) => {
+      if (!curr.gapProbability) return prev;
+      if (!prev || (curr.gapProbability || 0) > (prev.gapProbability || 0)) {
+        return curr;
+      }
+      return prev;
+    }, null as ChartPoint | null);
+  }, [data]);
+
   return (
     <Card className={styles.chartCard}>
       <CardHeader className={styles.chartCardHeader}>
@@ -124,9 +125,11 @@ export default function CashFlowChart() {
             <TrendingUp className={styles.headerIcon} />
           </div>
           <div>
-            <CardTitle className={styles.chartCardTitle}>Cash Flow прогноз</CardTitle>
+            <CardTitle className={styles.chartCardTitle}>Прогноз денежного потока</CardTitle>
             <p className={styles.chartCardSubtitle}>
-              {hasData ? "Наши предсказания баланса на следующие 4 недели" : "Подключите счета для просмотра прогноза"}
+              {hasData
+                ? "Прогноз баланса и притока на следующие недели"
+                : "Подключите счета для просмотра прогноза"}
             </p>
           </div>
         </div>
@@ -138,83 +141,110 @@ export default function CashFlowChart() {
           </div>
         ) : !hasData ? (
           <div style={{ padding: "2rem", textAlign: "center", color: muted_foreground }}>
-            <p>Нет данных для отображения</p>
+            <p>{error || "Нет данных для отображения"}</p>
             <p style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>
-              Подключите банковские счета, чтобы увидеть прогноз денежного потока
+              Попробуйте обновить страницу или подключить банковские счета
             </p>
           </div>
         ) : (
-        <ResponsiveContainer width="100%" height={320}>
-          <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-            <defs>
-              {/* Используем SCSS-переменные в SVG-градиентах */}
-              <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={primaryHslString} stopOpacity={0.4} />
-                <stop offset="95%" stopColor={primaryHslString} stopOpacity={0.05} />
-              </linearGradient>
-              <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={accentHslString} stopOpacity={0.4} />
-                <stop offset="95%" stopColor={accentHslString} stopOpacity={0.05} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={border} opacity={0.3} />
-            <XAxis
-              dataKey="date"
-              stroke={muted_foreground}
-              fontSize={12}
-              tickLine={false}
-              axisLine={{ stroke: border }}
-            />
-            <YAxis
-              stroke={muted_foreground}
-              fontSize={12}
-              tickLine={false}
-              axisLine={{ stroke: border }}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: popover,
-                border: `1px solid ${border}`,
-                borderRadius: "12px",
-                backdropFilter: "blur(12px)",
-              }}
-              formatter={(value: number) => [`₽${value.toLocaleString()}`, ""]}
-            />
-            <RefLine y={0} stroke={danger} strokeDasharray="5 5" strokeWidth={2} />
-            <Area
-              type="monotone"
-              dataKey="actual"
-              stroke={primary}
-              strokeWidth={3}
-              fillOpacity={1}
-              fill="url(#colorActual)"
-              name="Actual"
-              dot={{ fill: primary, r: 4 }}
+          <ResponsiveContainer width="100%" height={320}>
+            <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <defs>
+                {/* Используем SCSS-переменные в SVG-градиентах */}
+                <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={primaryHslString} stopOpacity={0.4} />
+                  <stop offset="95%" stopColor={primaryHslString} stopOpacity={0.05} />
+                </linearGradient>
+                <linearGradient id="colorInflow" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={accentHslString} stopOpacity={0.4} />
+                  <stop offset="95%" stopColor={accentHslString} stopOpacity={0.05} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={border} opacity={0.3} />
+              <XAxis
+                dataKey="date"
+                stroke={muted_foreground}
+                fontSize={12}
+                tickLine={false}
+                axisLine={{ stroke: border }}
               />
-            <Area
-              type="monotone"
-              dataKey="predicted"
-              stroke={accent}
-              strokeWidth={3}
-              strokeDasharray="8 4"
-              fillOpacity={1}
-              fill="url(#colorPredicted)"
-              name="Predicted"
-              dot={{ fill: accent, r: 4 }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+              <YAxis
+                stroke={muted_foreground}
+                fontSize={12}
+                tickLine={false}
+                axisLine={{ stroke: border }}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: popover,
+                  border: `1px solid ${border}`,
+                  borderRadius: "12px",
+                  backdropFilter: "blur(12px)",
+                }}
+                formatter={(value: number, name: string) => [
+                  `₽${value.toLocaleString("ru-RU")}`,
+                  name === "balance" ? "Баланс" : "Приток",
+                ]}
+              />
+              <RefLine y={0} stroke={danger} strokeDasharray="5 5" strokeWidth={2} />
+              <Area
+                type="monotone"
+                dataKey="balance"
+                stroke={primary}
+                strokeWidth={3}
+                fillOpacity={1}
+                fill="url(#colorBalance)"
+                name="Баланс"
+                dot={{ fill: primary, r: 4 }}
+              />
+              <Area
+                type="monotone"
+                dataKey="inflow"
+                stroke={accent}
+                strokeWidth={3}
+                strokeDasharray="8 4"
+                fillOpacity={1}
+                fill="url(#colorInflow)"
+                name="Приток"
+                dot={{ fill: accent, r: 4 }}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         )}
-        {hasData && <div className={styles.legend}>
-          <div className={styles.legendItem}>
-            <div className={`${styles.legendDot} ${styles.dotActual}`} />
-            <span className={styles.legendLabel}>Баланс</span>
-          </div>
-          <div className={styles.legendItem}>
-            <div className={`${styles.legendDot} ${styles.dotPredicted}`} />
-            <span className={styles.legendLabel}>Наш прогноз</span>
-          </div>
-        </div>}
+        {hasData && (
+          <>
+            <div className={styles.legend}>
+              <div className={styles.legendItem}>
+                <div className={`${styles.legendDot} ${styles.dotActual}`} />
+                <span className={styles.legendLabel}>Баланс</span>
+              </div>
+              <div className={styles.legendItem}>
+                <div className={`${styles.legendDot} ${styles.dotPredicted}`} />
+                <span className={styles.legendLabel}>Приток</span>
+              </div>
+            </div>
+            <div className={styles.chartMeta}>
+              {currentBalance !== null && (
+                <p>
+                  Текущий баланс:{" "}
+                  <strong>₽{currentBalance.toLocaleString("ru-RU")}</strong>
+                </p>
+              )}
+              {highestRisk?.gapProbability && (
+                <p>
+                  Максимальный риск кассового разрыва:{" "}
+                  <strong>{highestRisk.gapProbability.toFixed(0)}%</strong>
+                  {highestRisk.gapAmount && (
+                    <>
+                      {" "}
+                      (≈₽{Math.abs(highestRisk.gapAmount).toLocaleString("ru-RU")})
+                    </>
+                  )}
+                </p>
+              )}
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

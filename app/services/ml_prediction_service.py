@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 from decimal import Decimal
+from types import SimpleNamespace
 import numpy as np
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
@@ -15,6 +16,8 @@ from app.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+USE_MOCK_PREDICTION_DATA = True
 
 
 class MLPredictionService:
@@ -74,6 +77,9 @@ class MLPredictionService:
                 start_date=prediction_date
             )
             
+            current_balance = await self._get_current_balance(db=db, user_id=user_id)
+            running_balance = current_balance
+
             # Генерируем прогнозы
             predictions = []
             for week_num in range(1, weeks_ahead + 1):
@@ -93,8 +99,8 @@ class MLPredictionService:
                 )
                 
                 # Прогнозируем баланс
-                current_balance = await self._get_current_balance(db=db, user_id=user_id)
-                predicted_balance = current_balance + predicted_inflow - predicted_outflow
+                predicted_balance = running_balance + predicted_inflow - predicted_outflow
+                running_balance = predicted_balance
                 
                 # Рассчитываем вероятность кассового разрыва
                 gap_probability, gap_amount = self._calculate_gap_probability(
@@ -215,16 +221,19 @@ class MLPredictionService:
         start_date = end_date - timedelta(days=months_back * 30)
         
         # Получаем транзакции
-        stmt = select(BankTransaction).where(
-            and_(
-                BankTransaction.user_id == user_id,
-                BankTransaction.booking_date >= start_date,
-                BankTransaction.booking_date <= end_date
-            )
-        ).order_by(BankTransaction.booking_date)
-        
-        result = await db.execute(stmt)
-        transactions = result.scalars().all()
+        if USE_MOCK_PREDICTION_DATA:
+            transactions = self._get_mock_transactions(months_back)
+        else:
+            stmt = select(BankTransaction).where(
+                and_(
+                    BankTransaction.user_id == user_id,
+                    BankTransaction.booking_date >= start_date,
+                    BankTransaction.booking_date <= end_date
+                )
+            ).order_by(BankTransaction.booking_date)
+            
+            result = await db.execute(stmt)
+            transactions = result.scalars().all()
         
         # Группируем по неделям
         weekly_data = {}
@@ -240,10 +249,14 @@ class MLPredictionService:
                     "outflow": Decimal(0)
                 }
             
-            if tx.category == "income" or tx.transaction_type == "credit":
-                weekly_data[week_key]["inflow"] += tx.amount
+            tx_type = (tx.transaction_type or "").lower()
+            category = (tx.category or "").lower()
+            amount = Decimal(tx.amount or 0)
+
+            if category == "income" or tx_type == "credit":
+                weekly_data[week_key]["inflow"] += abs(amount)
             else:
-                weekly_data[week_key]["outflow"] += tx.amount
+                weekly_data[week_key]["outflow"] += abs(amount)
         
         # Преобразуем в список и сортируем
         historical = sorted(
@@ -268,17 +281,20 @@ class MLPredictionService:
         """
         end_date = start_date + timedelta(weeks=weeks_ahead)
         
-        stmt = select(AccountsReceivable).where(
-            and_(
-                AccountsReceivable.user_id == user_id,
-                AccountsReceivable.status.in_(["pending", "partial"]),
-                AccountsReceivable.due_date >= start_date,
-                AccountsReceivable.due_date <= end_date
+        if USE_MOCK_PREDICTION_DATA:
+            ar_list = self._get_mock_accounts_receivable()
+        else:
+            stmt = select(AccountsReceivable).where(
+                and_(
+                    AccountsReceivable.user_id == user_id,
+                    AccountsReceivable.status.in_(["pending", "partial"]),
+                    AccountsReceivable.due_date >= start_date,
+                    AccountsReceivable.due_date <= end_date
+                )
             )
-        )
-        
-        result = await db.execute(stmt)
-        ar_list = result.scalars().all()
+            
+            result = await db.execute(stmt)
+            ar_list = result.scalars().all()
         
         expected = {}
         for ar in ar_list:
@@ -422,6 +438,9 @@ class MLPredictionService:
         user_id: int
     ) -> Decimal:
         """Получить текущий баланс всех счетов"""
+        if USE_MOCK_PREDICTION_DATA:
+            return Decimal("950000")
+        
         stmt = select(BankAccount).where(
             and_(
                 BankAccount.user_id == user_id,
@@ -437,6 +456,48 @@ class MLPredictionService:
         )
         
         return total
+
+    def _get_mock_transactions(self, months_back: int) -> List:
+        now = datetime.utcnow()
+        samples = [
+            {"amount": "420000", "category": "income", "transaction_type": "credit", "days_ago": 7},
+            {"amount": "185000", "category": "expense", "transaction_type": "debit", "days_ago": 9},
+            {"amount": "380000", "category": "income", "transaction_type": "credit", "days_ago": 16},
+            {"amount": "210000", "category": "expense", "transaction_type": "debit", "days_ago": 21},
+            {"amount": "340000", "category": "income", "transaction_type": "credit", "days_ago": 29},
+            {"amount": "265000", "category": "expense", "transaction_type": "debit", "days_ago": 33},
+            {"amount": "390000", "category": "income", "transaction_type": "credit", "days_ago": 40},
+            {"amount": "180000", "category": "expense", "transaction_type": "debit", "days_ago": 44},
+        ]
+        transactions: List = []
+        for sample in samples:
+            booking_date = now - timedelta(days=sample["days_ago"])
+            transactions.append(
+                SimpleNamespace(
+                    amount=Decimal(sample["amount"]),
+                    category=sample["category"],
+                    transaction_type=sample["transaction_type"],
+                    booking_date=booking_date,
+                )
+            )
+        return transactions
+
+    def _get_mock_accounts_receivable(self) -> List:
+        now = datetime.utcnow()
+        return [
+            SimpleNamespace(
+                amount=Decimal("250000"),
+                paid_amount=Decimal("50000"),
+                status="pending",
+                due_date=now + timedelta(days=6),
+            ),
+            SimpleNamespace(
+                amount=Decimal("180000"),
+                paid_amount=Decimal("0"),
+                status="partial",
+                due_date=now + timedelta(days=13),
+            ),
+        ]
 
 
 # Глобальный экземпляр

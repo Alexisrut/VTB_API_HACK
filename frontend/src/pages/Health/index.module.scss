@@ -23,52 +23,59 @@
   }
 }
 
-.healthScore {
-  margin-bottom: 2rem;
-}
-
-.scoreContent {
-  display: flex;
-  align-items: center;
-  gap: 2rem;
-  padding: 2rem !important;
-}
-
-.scoreCircle {
+.periodSelector {
+  margin-top: 1rem;
   display: flex;
   flex-direction: column;
+  gap: 0.35rem;
+  max-width: 240px;
+
+  label {
+    font-size: 0.85rem;
+    color: $muted-foreground;
+  }
+}
+
+.selectWrapper {
+  position: relative;
+
+  select {
+    width: 100%;
+    padding: 0.5rem 2.25rem 0.5rem 0.75rem;
+    border-radius: $radius-md;
+    border: 1px solid $border;
+    background: $card;
+    color: $foreground;
+    font-size: 0.95rem;
+    appearance: none;
+    cursor: pointer;
+  }
+
+  &::after {
+    content: "▾";
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-45%);
+    font-size: 0.8rem;
+    color: $muted-foreground;
+    pointer-events: none;
+  }
+}
+
+.contextBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
   align-items: center;
-  justify-content: center;
-  min-width: 150px;
-}
-
-.scoreValue {
-  font-size: 3rem;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.scoreLabel {
-  font-size: 0.875rem;
+  margin-bottom: 1.5rem;
   color: $muted-foreground;
-  margin-top: 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.925rem;
 }
 
-.scoreStatus {
-  flex: 1;
-}
-
-.statusBadge {
-  @include status-pill(rgba($primary, 0.15), $primary-foreground);
-  margin-bottom: 1rem;
-}
-
-.statusDescription {
-  color: $muted-foreground;
-  font-size: 0.875rem;
-  line-height: 1.6;
+.statusPill {
+  @include status-pill(rgba($primary, 0.12), $primary-foreground);
+  font-size: 0.85rem;
 }
 
 .metricsGrid {
@@ -76,6 +83,69 @@
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+.insightsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.insightCard {
+  border-radius: $radius-lg;
+  padding: 1.25rem;
+  border: 1px solid $border;
+  background: rgba($background, 0.6);
+  box-shadow: $shadow-soft;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+
+  &:hover {
+    border-color: rgba($primary, 0.3);
+    transform: translateY(-2px);
+  }
+}
+
+.insightPositive {
+  border-left: 4px solid $success;
+}
+
+.insightWarning {
+  border-left: 4px solid $warning;
+}
+
+.insightDanger {
+  border-left: 4px solid $danger;
+}
+
+.insightNeutral {
+  border-left: 4px solid $border;
+}
+
+.insightHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+
+  span:first-child {
+    font-size: 0.85rem;
+    color: $muted-foreground;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
+
+.insightValue {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: $foreground;
+}
+
+.insightDescription {
+  font-size: 0.85rem;
+  color: $muted-foreground;
+  line-height: 1.4;
 }
 
 .detailsGrid {
@@ -99,11 +169,28 @@
     color: $muted-foreground;
     font-size: 0.875rem;
   }
+}
 
-  strong {
-    color: $foreground;
-    font-weight: 600;
-  }
+.metricValue {
+  font-weight: 600;
+  color: $foreground;
+  cursor: help;
+}
+
+.positive {
+  color: $success;
+}
+
+.warning {
+  color: $warning;
+}
+
+.danger {
+  color: $danger;
+}
+
+.neutral {
+  color: $foreground;
 }
 
 .cashFlowSection {

@@ -517,24 +517,40 @@ export const getConsentDetails = (consentId: string, bankCode: string) => {
 
 // ==================== ANALYTICS API ====================
 
-export interface HealthMetrics {
+export interface HealthMetricsResponse {
   success: boolean;
+  period?: {
+    start: string;
+    end: string;
+  };
   metrics?: {
-    total_revenue: number;
-    total_expenses: number;
-    net_income: number;
-    total_assets: number;
-    total_liabilities: number;
-    net_worth: number;
-    current_ratio?: number;
-    quick_ratio?: number;
-    total_ar: number;
-    overdue_ar: number;
-    ar_turnover_days?: number;
-    operating_cash_flow: number;
-    cash_flow_trend?: string;
-    health_score?: number;
-    health_status?: string;
+    revenue: {
+      total: number;
+      expenses: number;
+      net_income: number;
+    };
+    balance: {
+      total_assets: number;
+      total_liabilities: number;
+      net_worth: number;
+    };
+    liquidity: {
+      current_ratio?: number | null;
+      quick_ratio?: number | null;
+    };
+    accounts_receivable: {
+      total: number;
+      overdue: number;
+      turnover_days?: number | null;
+    };
+    cash_flow: {
+      operating_cash_flow: number;
+      trend?: string | null;
+    };
+    health: {
+      score?: number | null;
+      status?: string | null;
+    };
   };
   error?: string;
 }
@@ -557,7 +573,7 @@ export const getHealthMetrics = (periodStart?: string, periodEnd?: string) => {
   const params = new URLSearchParams();
   if (periodStart) params.append("period_start", periodStart);
   if (periodEnd) params.append("period_end", periodEnd);
-  return api.get<HealthMetrics>(
+  return api.get<HealthMetricsResponse>(
     `/api/v1/analytics/health-metrics?${params.toString()}`
   );
 };
@@ -568,28 +584,35 @@ export const getDashboardSummary = () => {
 
 // ==================== PREDICTIONS API ====================
 
-export interface CashFlowPrediction {
+export interface CashFlowPredictionResponse {
   success: boolean;
   predictions?: Array<{
-    prediction_date: string;
+    week: number;
+    date: string;
     predicted_inflow: number;
     predicted_outflow: number;
     predicted_balance: number;
-    gap_probability?: number;
-    gap_amount?: number;
-    confidence_score?: number;
+    gap_probability?: number | null;
+    gap_amount?: number | null;
+    confidence_score?: number | null;
   }>;
+  model_version?: string;
+  current_balance?: number;
   error?: string;
 }
 
-export interface CashFlowGap {
+export interface CashFlowGapResponse {
   success: boolean;
   gaps?: Array<{
     date: string;
-    gap_amount: number;
-    probability: number;
-    severity: string;
+    week: number;
+    predicted_balance: number;
+    gap_probability?: number | null;
+    gap_amount?: number | null;
+    predicted_inflow: number;
+    predicted_outflow: number;
   }>;
+  total_gaps?: number;
   error?: string;
 }
 
@@ -599,13 +622,13 @@ export const getCashFlowPredictions = (
 ) => {
   const params = new URLSearchParams({ weeks_ahead: weeksAhead.toString() });
   if (predictionDate) params.append("prediction_date", predictionDate);
-  return api.get<CashFlowPrediction>(
+  return api.get<CashFlowPredictionResponse>(
     `/api/v1/predictions/cash-flow?${params.toString()}`
   );
 };
 
 export const getCashFlowGaps = (weeksAhead: number = 4) => {
-  return api.get<CashFlowGap>(
+  return api.get<CashFlowGapResponse>(
     `/api/v1/predictions/cash-flow-gaps?weeks_ahead=${weeksAhead}`
   );
 };
