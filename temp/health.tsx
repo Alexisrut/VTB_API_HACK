@@ -42,6 +42,32 @@ const formatDateShort = (value?: string | null) => {
   });
 };
 
+const getTrendText = (trend?: string | null) => {
+  switch (trend) {
+    case "increasing":
+      return "Рост";
+    case "decreasing":
+      return "Снижение";
+    case "stable":
+      return "Стабильно";
+    default:
+      return "Нет данных";
+  }
+};
+
+const getTrendTooltip = (trend?: string | null) => {
+  switch (trend) {
+    case "increasing":
+      return "Притоки растут быстрее оттоков. Можно планировать инвестиции.";
+    case "decreasing":
+      return "Баланс снижается. Проверьте расходы и ожидаемые поступления.";
+    case "stable":
+      return "Денежный поток стабильный без резких изменений.";
+    default:
+      return "Недостаточно данных для анализа тренда.";
+  }
+};
+
 const getHealthStatusColor = (status?: string | null) => {
   switch (status?.toLowerCase()) {
     case "excellent":
@@ -140,12 +166,29 @@ export default function FinancialAnalytics() {
     []
   );
 
+  const renderValueWithTooltip = (
+    value: string,
+    tooltipText: string,
+    variant: ValueVariant = "neutral"
+  ) => (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <strong className={cn(styles.metricValue, styles[variant])}>{value}</strong>
+      </TooltipTrigger>
+      <TooltipContent>{tooltipText}</TooltipContent>
+    </Tooltip>
+  );
+
   const revenue = metrics?.revenue;
+  const balance = metrics?.balance;
+  const liquidity = metrics?.liquidity;
   const receivables = metrics?.accounts_receivable;
   const cashFlow = metrics?.cash_flow;
   const health = metrics?.health;
 
   const netIncome = revenue?.net_income ?? null;
+  const currentRatio = liquidity?.current_ratio ?? null;
+  const quickRatio = liquidity?.quick_ratio ?? null;
   const totalAR = receivables?.total ?? null;
   const overdueAR = receivables?.overdue ?? null;
   const overdueRatio =
@@ -154,6 +197,14 @@ export default function FinancialAnalytics() {
 
   const netIncomeVariant: ValueVariant =
     netIncome === null ? "neutral" : netIncome > 0 ? "positive" : netIncome < 0 ? "danger" : "warning";
+  const ratioVariant: ValueVariant =
+    currentRatio === null
+      ? "neutral"
+      : currentRatio >= 2
+      ? "positive"
+      : currentRatio >= 1
+      ? "warning"
+      : "danger";
   const overdueVariant: ValueVariant =
     overdueRatio === null
       ? "neutral"
@@ -164,6 +215,14 @@ export default function FinancialAnalytics() {
       : "positive";
   const ocfVariant: ValueVariant =
     ocf === null ? "neutral" : ocf > 0 ? "positive" : ocf < 0 ? "danger" : "warning";
+  const cashTrendVariant: ValueVariant =
+    cashFlow?.trend === "increasing"
+      ? "positive"
+      : cashFlow?.trend === "decreasing"
+      ? "danger"
+      : cashFlow?.trend === "stable"
+      ? "warning"
+      : "neutral";
 
   const periodText = useMemo(() => {
     if (!period) return null;
@@ -208,6 +267,22 @@ export default function FinancialAnalytics() {
       });
     }
 
+    if (liquidity) {
+      result.push({
+        id: "liquidity",
+        label: "Коэф. текущей ликвидности",
+        value: currentRatio !== null ? currentRatio.toFixed(2) : "—",
+        variant: ratioVariant,
+        tooltip: "Способность погасить краткосрочные обязательства.",
+        description:
+          ratioVariant === "positive"
+            ? "Запас ликвидности комфортный."
+            : ratioVariant === "warning"
+            ? "Пограничное значение — держите под контролем."
+            : "Недостаточная ликвидность, нужна подушка.",
+      });
+    }
+
     if (cashFlow) {
       result.push({
         id: "cash_flow",
@@ -228,14 +303,17 @@ export default function FinancialAnalytics() {
   }, [
     revenue,
     receivables,
+    liquidity,
     cashFlow,
     netIncomeVariant,
     overdueVariant,
+    ratioVariant,
     ocfVariant,
     overdueRatio,
     ocf,
     overdueAR,
     netIncome,
+    currentRatio,
   ]);
 
   const insightVariantClassMap: Record<ValueVariant, string> = {
@@ -394,6 +472,110 @@ export default function FinancialAnalytics() {
                   variant="warning"
                   tooltip="Счета к получению, ожидаемые от клиентов."
                 />
+              </div>
+
+              <div className={styles.detailsGrid}>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Ликвидность</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={styles.metricRow}>
+                      <span>Коэффициент текущей ликвидности</span>
+                      {renderValueWithTooltip(
+                        currentRatio !== null ? currentRatio.toFixed(2) : "—",
+                        "Отношение оборотных активов к краткосрочным обязательствам.",
+                        ratioVariant
+                      )}
+                    </div>
+                    <div className={styles.metricRow}>
+                      <span>Коэффициент быстрой ликвидности</span>
+                      {renderValueWithTooltip(
+                        quickRatio !== null ? quickRatio.toFixed(2) : "—",
+                        "Материальные запасы исключены. Показывает мгновенную платежеспособность.",
+                        quickRatio !== null && quickRatio >= 1
+                          ? "positive"
+                          : quickRatio !== null && quickRatio >= 0.7
+                          ? "warning"
+                          : quickRatio !== null
+                          ? "danger"
+                          : "neutral"
+                      )}
+                    </div>
+                    {receivables && (
+                      <div className={styles.metricRow}>
+                        <span>Оборачиваемость ДЗ</span>
+                        {renderValueWithTooltip(
+                          receivables.turnover_days ? `${receivables.turnover_days.toFixed(0)} дн.` : "—",
+                          "Сколько дней в среднем требуется для оплаты счетов.",
+                          receivables.turnover_days && receivables.turnover_days <= 30
+                            ? "positive"
+                            : receivables.turnover_days && receivables.turnover_days <= 45
+                            ? "warning"
+                            : receivables.turnover_days
+                            ? "danger"
+                            : "neutral"
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Денежный поток</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={styles.metricRow}>
+                      <span>Операционный денежный поток</span>
+                      {renderValueWithTooltip(
+                        formatCurrency(ocf),
+                        "Основные поступления минус выплаты по операционной деятельности.",
+                        ocfVariant
+                      )}
+                    </div>
+                    <div className={styles.metricRow}>
+                      <span>Тренд</span>
+                      {renderValueWithTooltip(
+                        getTrendText(cashFlow?.trend),
+                        getTrendTooltip(cashFlow?.trend),
+                        cashTrendVariant
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Активы и обязательства</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className={styles.metricRow}>
+                      <span>Общие активы</span>
+                      {renderValueWithTooltip(
+                        formatCurrency(balance?.total_assets),
+                        "Сумма средств на всех активных счетах.",
+                        "neutral"
+                      )}
+                    </div>
+                    <div className={styles.metricRow}>
+                      <span>Обязательства</span>
+                      {renderValueWithTooltip(
+                        formatCurrency(balance?.total_liabilities),
+                        "Краткосрочные обязательства, учтённые при расчёте.",
+                        "neutral"
+                      )}
+                    </div>
+                    <div className={styles.metricRow}>
+                      <span>Чистая стоимость</span>
+                      {renderValueWithTooltip(
+                        formatCurrency(balance?.net_worth),
+                        "Разница между активами и обязательствами.",
+                        balance && balance.net_worth > 0 ? "positive" : "warning"
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
 
               <div className={styles.cashFlowSection}>

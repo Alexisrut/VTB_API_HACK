@@ -3,6 +3,9 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+bank-in-a-box/
+TESTING_BANK_CREATION.md
+temp/
 # C extensions
 *.so
 

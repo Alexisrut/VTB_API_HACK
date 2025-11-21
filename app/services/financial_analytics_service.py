@@ -172,20 +172,20 @@ class FinancialAnalyticsService:
                 if acc.is_active
             )
             
-            # Доходы и расходы за последние 30 дней из банков напрямую
+            # Доходы и расходы за последние 30 дней из БД
             period_end = datetime.utcnow()
             period_start = period_end - timedelta(days=30)
             
-            # Получаем транзакции из всех банков напрямую через API
-            all_transactions = await self._get_transactions_from_banks(
+            # Получаем транзакции из БД (как в Health)
+            transactions = await self._get_transactions_in_period(
                 db=db,
                 user_id=user_id,
                 period_start=period_start,
                 period_end=period_end
             )
             
-            total_revenue = self._calculate_revenue_from_bank_transactions(all_transactions)
-            total_expenses = self._calculate_expenses_from_bank_transactions(all_transactions)
+            total_revenue = self._calculate_revenue(transactions)
+            total_expenses = self._calculate_expenses(transactions)
             net_income = total_revenue - total_expenses
             
             # Дебиторская задолженность

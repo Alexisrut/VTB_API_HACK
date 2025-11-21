@@ -34,6 +34,7 @@
 
 .statCard {
   @include glass-card(false);
+  overflow: hidden; /* Чтобы контент не вылезал */
   
   &.default {
     @include variant-styles($primary, $primary-foreground);
@@ -52,20 +53,21 @@
 
 .cardContent {
   padding: 1.5rem;
+  position: relative; /* Для абсолютного позиционирования иконки */
 }
 
 .contentWrapper {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column; /* Текст друг под другом */
+  gap: 0.5rem;
 }
 
 .textSection {
-  flex: 1 1 0%;
+  width: 100%;
+  padding-right: 3.5rem; /* Отступ справа для иконки */
   
   > *:not([hidden]) ~ *:not([hidden]) {
-    margin-top: 0.75rem;
+    margin-top: 0.5rem;
   }
 }
 
@@ -75,14 +77,17 @@
   color: $muted-foreground;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
 }
 
 
 .value {
-  font-size: 2.25rem;
+  font-size: 1.75rem; /* Немного уменьшил для длинных чисел */
   font-weight: 700;
   color: $foreground;
   text-shadow: 0 0 20px rgba($primary, 0.3);
+  word-break: break-word; /* Перенос длинных слов/чисел */
+  line-height: 1.2;
 }
 
 .subtitle {
@@ -111,12 +116,18 @@
 
 
 .iconBg {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
   border-radius: $radius * 1.25;
-  padding: 1rem;
+  padding: 0.75rem;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .icon {
-  height: 1.75rem;
-  width: 1.75rem;
+  height: 1.5rem;
+  width: 1.5rem;
 }
