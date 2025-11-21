@@ -265,19 +265,29 @@ async def delete_bank_user(
                 detail=f"Bank user not found for bank_code: {bank_code}"
             )
         
-        # Отвязываем согласия от счетов перед удалением
-        from app.models import BankAccount
-        from sqlalchemy import update
+        from app.models import BankAccount, BankTransaction
         
-        update_stmt = update(BankAccount).where(
+        # 1. Удаляем транзакции этого банка (чтобы обновилась статистика)
+        trx_delete_stmt = sql_delete(BankTransaction).where(
+            and_(
+                BankTransaction.user_id == user_id,
+                BankTransaction.bank_code == bank_code
+            )
+        )
+        await db.execute(trx_delete_stmt)
+        logger.info(f"Deleted transactions for user {user_id} and bank {bank_code}")
+
+        # 2. Удаляем счета этого банка
+        acc_delete_stmt = sql_delete(BankAccount).where(
             and_(
                 BankAccount.user_id == user_id,
                 BankAccount.bank_code == bank_code
             )
-        ).values(consent_id=None)
-        await db.execute(update_stmt)
+        )
+        await db.execute(acc_delete_stmt)
+        logger.info(f"Deleted accounts for user {user_id} and bank {bank_code}")
         
-        # Удаляем связанные согласия для этого банка
+        # 3. Удаляем связанные согласия для этого банка
         consent_delete_stmt = sql_delete(BankConsent).where(
             and_(
                 BankConsent.user_id == user_id,
@@ -287,11 +297,11 @@ async def delete_bank_user(
         await db.execute(consent_delete_stmt)
         logger.info(f"Deleted consents for user {user_id} and bank {bank_code}")
         
-        # Удаляем bank_user
+        # 4. Удаляем bank_user
         await db.delete(bank_user)
         await db.commit()
         
-        return {"message": f"Bank user and associated consents for {bank_code} deleted successfully"}
+        return {"message": f"Bank user and all associated data for {bank_code} deleted successfully"}
     except HTTPException:
         raise
     except Exception as e:
